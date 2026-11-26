@@ -17,13 +17,13 @@ class SourceRepository(private val service: GithubSourceService) {
     private val maxItems = 100
     private val maxMarkdown = 12
 
-    suspend fun discover(input: String): SourceDiscovery {
+    suspend fun discover(input: String, onUpdate: suspend (SourceDiscovery) -> Unit = {}): SourceDiscovery {
         val uri = SourceRules.checkedUrl(input)
         val parts = uri.path.trim('/').split('/').filter { it.isNotEmpty() }
-        if (uri.host.equals("github.com", true) && parts.size == 2) return repository(parts[0], parts[1].removeSuffix(".git"))
+        if (uri.host.equals("github.com", true) && parts.size == 2) return repository(parts[0], parts[1].removeSuffix(".git"), onUpdate)
         if (uri.host.equals("github.com", true) && parts.size >= 3 && parts[2] == "tree") throw IOException("Directory URLs are not supported")
         val origin = if (uri.host.equals("github.com", true) || uri.host.equals("raw.githubusercontent.com", true)) SourceOrigin.GITHUB_FILE else SourceOrigin.NETWORK
-        if (ReferenceKind.CLOUD_SHARE in SourceRules.referenceKinds(uri.toString())) return SourceDiscovery(origin, emptyList(), references = setOf(ReferenceKind.CLOUD_SHARE))
+        if (ReferenceKind.CLOUD_SHARE in SourceRules.referenceKinds(uri.toString())) return SourceDiscovery(origin, emptyList(), references = setOf(ReferenceKind.CLOUD_SHARE)).also { onUpdate(it) }
         val normalized = normalizeGithubFile(uri)
         val fetched = fetch(normalized, true)
         val content = fetched.text
@@ -44,13 +44,13 @@ class SourceRepository(private val service: GithubSourceService) {
             content != null && SourceRules.isMarkdown(uri.path) -> SourceRules.referenceKinds(content)
             else -> emptySet()
         }
-        return bounded(origin, items, items.size > maxItems || fetched.truncated || playlist?.skipped == true, references)
+        return bounded(origin, items, items.size > maxItems || fetched.truncated || playlist?.skipped == true, references).also { onUpdate(it) }
     }
 
     /** Resolve redirects again at selection time so temporary signed targets are not saved. */
     suspend fun playbackUrl(url: String): String = fetch(SourceRules.checkedUrl(url).toString(), false).finalUrl
 
-    private suspend fun repository(owner: String, repo: String): SourceDiscovery {
+    private suspend fun repository(owner: String, repo: String, onUpdate: suspend (SourceDiscovery) -> Unit): SourceDiscovery {
         require(owner.matches(Regex("[A-Za-z0-9_.-]+")) && repo.matches(Regex("[A-Za-z0-9_.-]+")))
         val branch = service.repository(owner, repo).defaultBranch?.takeIf { it.isNotBlank() } ?: throw IOException("Missing default branch")
         val tree = service.tree(owner, repo, branch)
@@ -70,6 +70,11 @@ class SourceRepository(private val service: GithubSourceService) {
         val markdown = files.filter { SourceRules.isMarkdown(it.path!!) }
         var partial = tree.truncated != false || results.size >= maxItems || markdown.size > maxMarkdown
         val references = mutableSetOf<ReferenceKind>()
+        suspend fun publish() {
+            val unique = results.distinctBy { it.id }
+            onUpdate(bounded(SourceOrigin.GITHUB_REPOSITORY, unique, partial || unique.size > maxItems, references.toSet()))
+        }
+        if (results.isNotEmpty()) publish()
         for (entry in markdown.take(maxMarkdown)) {
             coroutineContext.ensureActive()
             try {
@@ -87,6 +92,7 @@ class SourceRepository(private val service: GithubSourceService) {
                     }
                 }
             } catch (e: IOException) { partial = true }
+            publish()
         }
         val uniqueTransport = transportFiles.distinct()
         if (uniqueTransport.size > 8) partial = true
@@ -96,6 +102,7 @@ class SourceRepository(private val service: GithubSourceService) {
             try {
                 if (fetch(url, true, probeTransport = true).isTransportStream) results.add(item(url, SourceKind.MEDIA))
             } catch (e: IOException) { partial = true }
+            publish()
         }
         val uniqueLists = lists.distinct()
         if (uniqueLists.size > 8) partial = true
@@ -109,9 +116,10 @@ class SourceRepository(private val service: GithubSourceService) {
                 references.addAll(found.references)
             } catch (e: IOException) { partial = true }
             catch (e: retrofit2.HttpException) { partial = true }
+            publish()
         }
         val unique = results.distinctBy { it.id }
-        return bounded(SourceOrigin.GITHUB_REPOSITORY, unique, partial || unique.size > maxItems, references)
+        return bounded(SourceOrigin.GITHUB_REPOSITORY, unique, partial || unique.size > maxItems, references).also { onUpdate(it) }
     }
 
     private suspend fun normalizeGithubFile(uri: URI): String {

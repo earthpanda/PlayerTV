@@ -9,7 +9,7 @@ import com.ai.playtv.di.AppContainer
  * Application composition root; initializes the explicitly selected foundation toolkit.
  * Register new capabilities here only when their documented lifecycle requires it.
  */
-class AppApplication : Application() {
+open class AppApplication : Application() {
     lateinit var container: AppContainer
         private set
 

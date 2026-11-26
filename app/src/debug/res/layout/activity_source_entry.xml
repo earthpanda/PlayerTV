@@ -2,13 +2,19 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent" android:layout_height="match_parent"
     android:orientation="vertical" android:gravity="center" android:padding="32pt" android:background="#15171C"
-    android:focusable="true" android:focusableInTouchMode="true">
+    android:focusable="true" android:focusableInTouchMode="true"
+    android:descendantFocusability="afterDescendants">
     <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
         android:text="@string/s_tv_entry_title" android:textColor="#FFFFFF" android:textSize="20pt" />
     <Spinner android:id="@+id/presets" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_marginTop="8pt" android:contentDescription="@string/s_tv_entry_presets" />
+        android:layout_marginTop="8pt" android:minHeight="48pt" android:focusable="true"
+        android:background="@drawable/source_entry_focus_background"
+        android:contentDescription="@string/s_tv_entry_presets" />
     <EditText android:id="@+id/source_url" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:layout_marginTop="16pt" android:singleLine="true" android:inputType="textUri"
+        android:minHeight="48pt" android:paddingStart="8pt" android:paddingEnd="8pt"
+        android:focusable="true" android:focusableInTouchMode="true"
+        android:background="@drawable/source_entry_focus_background"
         android:hint="@string/s_tv_import_hint" android:textColor="#FFFFFF" android:textColorHint="#A0FFFFFF"
         android:textSize="14pt" />
     <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content"

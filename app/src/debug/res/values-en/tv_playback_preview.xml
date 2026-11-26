@@ -83,4 +83,6 @@
         <item>WanXiang · movie list</item>
         <item>WanXiang · movie factory (contains HTTP)</item>
     </string-array>
+    <string name="s_tv_import_discovering">Finding more sources…</string>
+    <string name="s_tv_import_discovery_failed">Some sources could not be found. Available sources remain usable.</string>
 </resources>

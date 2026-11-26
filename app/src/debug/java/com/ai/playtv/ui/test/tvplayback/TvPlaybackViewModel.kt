@@ -16,13 +16,17 @@ import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.repository.source.SourceRepository
 import com.ai.playtv.di.NetworkDependencies
+import com.ai.playtv.di.SourceDiscoveryOwner
+import com.ai.playtv.model.manager.source.SourceDiscoverySession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** Debug-only session; all player and surface commands are issued on main. */
 class TvPlaybackViewModel(private val appContext: Context, private val repository: SourceRepository,
-    private val network: NetworkDependencies, private val initialSources: List<ImportedSource>, partial: Boolean) :
+    private val network: NetworkDependencies, private val initialSources: List<ImportedSource>, partial: Boolean,
+    private val discoveryOwner: SourceDiscoveryOwner? = null, private val sessionId: String? = null,
+    private val session: SourceDiscoverySession? = null) :
     BaseMviViewModel<TvPlaybackState, TvPlaybackEvent, TvPlaybackEffect>(TvPlaybackState(
         imported = initialSources, importPartial = partial,
         activeId = initialSources.firstOrNull { it.url != KNOWN_CRASHING_WEBM }?.id ?: TvPreviewSource.BUNNY.name,
@@ -65,12 +69,20 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     }
 
     init {
+        if (session != null) viewModelScope.launch {
+            session.state.collect { snapshot ->
+                setState { copy(imported = snapshot.result?.items ?: imported,
+                    importPartial = snapshot.result?.partial == true,
+                    discoveryRunning = snapshot.running,
+                    discoveryFailed = snapshot.error != null) }
+            }
+        }
         viewModelScope.launch {
             try {
                 val created = AndroidPlayer.create(appContext)
                 player = created
                 surface?.let { report(created.setSurface(it)) }
-                if (initialSources.isEmpty()) loadSource(created, currentSource)
+                if (initialSources.isEmpty() && sessionId == null) loadSource(created, currentSource)
                 else initialSources.firstOrNull { it.url != KNOWN_CRASHING_WEBM }?.let { selectImported(it) }
                     ?: setState { copy(phase = "FAILED", error = "SOURCE_UNAVAILABLE") }
                 created.state.collect { snapshot ->
@@ -179,6 +191,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     }
     override fun onCleared() {
         selectionJob?.cancel()
+        if (sessionId != null) discoveryOwner?.close(sessionId)
         network.close()
         surface = null
         player?.close()

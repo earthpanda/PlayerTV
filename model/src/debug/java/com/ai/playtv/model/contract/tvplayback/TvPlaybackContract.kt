@@ -20,6 +20,7 @@ data class TvPlaybackState(
     val activeId: String = TvPreviewSource.BUNNY.name, val activeName: String? = null,
     val imported: List<ImportedSource> = emptyList(), val importPartial: Boolean = false,
     val sourceResolving: Boolean = false,
+    val discoveryRunning: Boolean = false, val discoveryFailed: Boolean = false,
 ) : UiState
 sealed interface TvPlaybackEvent : UiEvent {
     data object Toggle : TvPlaybackEvent

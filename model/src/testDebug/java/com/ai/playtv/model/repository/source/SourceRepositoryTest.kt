@@ -8,6 +8,12 @@ import com.ai.playtv.model.bean.net.source.GithubTreeEntryDto
 import com.ai.playtv.model.network.service.source.GithubSourceService
 import com.google.gson.JsonObject
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
+import com.ai.playtv.model.manager.source.SourceDiscoverySession
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
@@ -29,10 +35,12 @@ class SourceRepositoryTest {
         val bodies = mutableMapOf<String, Pair<String, String>>()
         val responseBodies = mutableMapOf<String, ResponseBody>()
         val redirects = mutableMapOf<String, String>()
+        var beforeContent: suspend (String) -> Unit = {}
         override suspend fun repository(owner: String, repo: String) = GithubRepositoryDto("main")
         override suspend fun tree(owner: String, repo: String, ref: String) = treeResult
         override suspend fun commit(owner: String, repo: String, ref: String) = JsonObject()
         override suspend fun content(url: String): Response<ResponseBody> {
+            beforeContent(url)
             responseBodies[url]?.let { return Response.success(it) }
             redirects[url]?.let { location ->
                 val raw = okhttp3.Response.Builder().request(Request.Builder().url(url).build()).protocol(Protocol.HTTP_1_1)
@@ -110,5 +118,71 @@ class SourceRepositoryTest {
         assertEquals(1, SourceRepository(fake).discover("https://example.org/video").items.size)
         assertNotNull(closedOn.get())
         assertNotEquals(caller, closedOn.get())
+    }
+
+    @Test fun repositoryPublishesMediaBeforeSlowReadmeAndAppendsUniqueResults() = runBlocking {
+        val fake = FakeService()
+        fake.treeResult = GithubTreeDto(false, listOf(
+            GithubTreeEntryDto("demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))
+        val readme = "https://raw.githubusercontent.com/example/repo/main/README.md"
+        val gate = CompletableDeferred<Unit>()
+        fake.beforeContent = { if (it == readme) gate.await() }
+        fake.bodies[readme] = "text/plain" to "[same](demo.mp4) [next](https://example.org/next.mkv)"
+        val first = CompletableDeferred<List<String>>()
+        val updates = mutableListOf<List<String>>()
+        val task = launch(Dispatchers.Default) {
+            SourceRepository(fake).discover("https://github.com/example/repo") { result ->
+                val urls = result.items.map { it.url }
+                synchronized(updates) { updates.add(urls) }
+                if (urls.isNotEmpty()) first.complete(urls)
+            }
+        }
+        val initial = withTimeout(3_000) { first.await() }
+        assertEquals(listOf("https://raw.githubusercontent.com/example/repo/main/demo.mp4"), initial)
+        assertFalse(task.isCompleted)
+        gate.complete(Unit)
+        withTimeout(3_000) { task.join() }
+        val final = synchronized(updates) { updates.last() }
+        assertEquals(2, final.size)
+        assertEquals(initial.first(), final.first())
+        assertEquals("https://example.org/next.mkv", final.last())
+    }
+
+    @Test fun sessionRetainsFirstItemWhenLaterRequestFailsAndCanClose() = runBlocking {
+        val fake = FakeService()
+        fake.treeResult = GithubTreeDto(false, listOf(
+            GithubTreeEntryDto("demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))
+        val released = CompletableDeferred<Unit>()
+        val session = SourceDiscoverySession(SourceRepository(fake), "https://github.com/example/repo", { released.complete(Unit) }, Dispatchers.Default)
+        val done = withTimeout(3_000) { session.state.first { !it.running } }
+        assertEquals(1, done.result?.items?.size)
+        assertTrue(done.result?.partial == true)
+        assertNull(done.error)
+        session.close()
+        session.close()
+        withTimeout(3_000) { released.await() }
+    }
+
+    @Test fun closingSessionCancelsPendingDiscoveryAndReleasesOnce() = runBlocking {
+        val fake = FakeService()
+        fake.treeResult = GithubTreeDto(false, listOf(
+            GithubTreeEntryDto("demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))
+        val entered = CompletableDeferred<Unit>()
+        val stopped = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        fake.beforeContent = {
+            entered.complete(Unit)
+            try { gate.await() } finally { stopped.complete(Unit) }
+        }
+        val releases = java.util.concurrent.atomic.AtomicInteger()
+        val session = SourceDiscoverySession(SourceRepository(fake), "https://github.com/example/repo", { releases.incrementAndGet() }, Dispatchers.Default)
+        withTimeout(3_000) { entered.await() }
+        assertEquals(1, session.state.value.result?.items?.size)
+        session.close()
+        session.close()
+        withTimeout(3_000) { stopped.await() }
+        withTimeout(3_000) { while (releases.get() == 0) kotlinx.coroutines.yield() }
+        assertEquals(1, releases.get())
+        assertFalse(session.state.value.running)
     }
 }

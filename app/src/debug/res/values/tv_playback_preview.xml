@@ -98,4 +98,6 @@
         <item>万象 · 一万部电影</item>
         <item>万象 · 电影工厂（含 HTTP）</item>
     </string-array>
+    <string name="s_tv_import_discovering">正在继续查找播放来源…</string>
+    <string name="s_tv_import_discovery_failed">部分来源查找失败，已找到的来源仍可使用</string>
 </resources>

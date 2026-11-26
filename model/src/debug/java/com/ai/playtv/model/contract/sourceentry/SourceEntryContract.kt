@@ -1,6 +1,5 @@
 ﻿package com.ai.playtv.model.contract.sourceentry
 
-import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.contract.mvi.UiEffect
 import com.ai.playtv.model.contract.mvi.UiEvent
 import com.ai.playtv.model.contract.mvi.UiState
@@ -13,5 +12,5 @@ sealed interface SourceEntryEvent : UiEvent {
 }
 sealed interface SourceEntryEffect : UiEffect {
     data object OpenDefaults : SourceEntryEffect
-    data class OpenPlayer(val items: List<ImportedSource>, val partial: Boolean) : SourceEntryEffect
+    data class OpenPlayer(val sessionId: String) : SourceEntryEffect
 }

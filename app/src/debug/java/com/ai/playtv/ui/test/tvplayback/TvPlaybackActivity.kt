@@ -1,5 +1,7 @@
 package com.ai.playtv.ui.test.tvplayback
 
+import android.content.Intent
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -12,20 +14,21 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
+import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.databinding.ActivityTvPlaybackBinding
 import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.di.NetworkDependencies
-import com.ai.playtv.support.network.NetworkConfig
+import com.ai.playtv.di.sourceNetworkConfig
 import com.ai.playtv.model.network.service.source.GithubSourceService
 import com.ai.playtv.model.repository.source.SourceRepository
 import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.bean.domain.source.SourceKind
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
 import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.ui.BaseMviActivity
+import com.ai.playtv.ui.test.sourceentry.SourceEntryActivity
 import java.util.Locale
 
 class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlaybackState,
@@ -35,18 +38,24 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         const val EXTRA_NAMES = "source_names"
         const val EXTRA_KINDS = "source_kinds"
         const val EXTRA_PARTIAL = "source_partial"
+        const val EXTRA_SESSION_ID = "source_session_id"
     }
     override val viewModelClass = TvPlaybackViewModel::class.java
     override fun createViewModelFactory(): ViewModelProvider.Factory =
         viewModelFactory(viewModelClass) {
-            val network = NetworkDependencies(NetworkConfig("https://api.github.com/".toHttpUrl()))
+            val network = NetworkDependencies(sourceNetworkConfig())
+            val owner = (application as SourcePreviewApplication).discoveryOwner
+            val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
+            val session = sessionId?.let(owner::find)
             val urls = intent.getStringArrayListExtra(EXTRA_URLS).orEmpty()
             val names = intent.getStringArrayListExtra(EXTRA_NAMES).orEmpty()
             val kinds = intent.getStringArrayListExtra(EXTRA_KINDS).orEmpty()
             val sources = urls.mapIndexed { i, url -> ImportedSource(url, names.getOrNull(i) ?: url, url,
                 SourceKind.entries.firstOrNull { it.name == kinds.getOrNull(i) } ?: SourceKind.UNKNOWN) }
+            val initial = session?.state?.value?.result?.items ?: sources
             TvPlaybackViewModel(applicationContext, SourceRepository(network.service(GithubSourceService::class.java)), network,
-                sources, intent.getBooleanExtra(EXTRA_PARTIAL, false))
+                initial, session?.state?.value?.result?.partial ?: intent.getBooleanExtra(EXTRA_PARTIAL, false),
+                owner, sessionId, session)
         }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -83,6 +92,15 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         closePlaylist()
         row.source?.let { viewModel.onEvent(TvPlaybackEvent.SelectSource(it)) }
             ?: row.imported?.let { viewModel.onEvent(TvPlaybackEvent.SelectImported(it)) }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val id = intent.getStringExtra(EXTRA_SESSION_ID)
+        if (id != null && (application as SourcePreviewApplication).discoveryOwner.find(id) == null) {
+            startActivity(Intent(this, SourceEntryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+            finish()
+        }
     }
 
     override fun initView() {
@@ -155,7 +173,12 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         } else emptyList()) + state.imported.map {
             TvPreviewSourceRow(null, it, it.id == state.activeId, it.id == state.activeId && state.phase == "PLAYING")
         })
-        binding.importStatus.text = if (state.importPartial) getString(R.string.s_tv_import_partial) else ""
+        binding.importStatus.text = when {
+            state.discoveryRunning -> getString(R.string.s_tv_import_discovering)
+            state.discoveryFailed -> getString(R.string.s_tv_import_discovery_failed)
+            state.importPartial -> getString(R.string.s_tv_import_partial)
+            else -> ""
+        }
         renderProgress()
     }
 
