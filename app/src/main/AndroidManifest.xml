@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- TV devices need not have a touchscreen. The launcher below is only
          a technical preview; TV artwork and the actual UI are pending. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

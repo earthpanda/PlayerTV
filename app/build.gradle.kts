@@ -13,8 +13,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        buildConfigField("boolean", "TEST_MODE", providers.systemProperty("Test")
+            .map { it.equals("true", ignoreCase = true) }.orElse(false).get().toString())
     }
-    buildFeatures { viewBinding = true }
+    buildFeatures { viewBinding = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -32,6 +34,8 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation(project(":base"))
     implementation(project(":model"))
+    implementation(project(":support"))
+    implementation(libs.gson)
     implementation(libs.playback.android)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.appcompat)

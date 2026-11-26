@@ -14,6 +14,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
 import com.ai.playtv.databinding.ActivityTvPlaybackBinding
 import com.ai.playtv.di.viewModelFactory
+import com.ai.playtv.di.NetworkDependencies
+import com.ai.playtv.support.network.NetworkConfig
+import com.ai.playtv.model.network.service.source.GithubSourceService
+import com.ai.playtv.model.repository.source.SourceRepository
+import com.ai.playtv.model.bean.domain.source.ImportedSource
+import com.ai.playtv.model.bean.domain.source.SourceKind
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
@@ -23,14 +30,29 @@ import java.util.Locale
 
 class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlaybackState,
     TvPlaybackEvent, TvPlaybackEffect, TvPlaybackViewModel>(ActivityTvPlaybackBinding::inflate), SurfaceHolder.Callback {
+    companion object {
+        const val EXTRA_URLS = "source_urls"
+        const val EXTRA_NAMES = "source_names"
+        const val EXTRA_KINDS = "source_kinds"
+        const val EXTRA_PARTIAL = "source_partial"
+    }
     override val viewModelClass = TvPlaybackViewModel::class.java
     override fun createViewModelFactory(): ViewModelProvider.Factory =
-        viewModelFactory(viewModelClass) { TvPlaybackViewModel(applicationContext) }
+        viewModelFactory(viewModelClass) {
+            val network = NetworkDependencies(NetworkConfig("https://api.github.com/".toHttpUrl()))
+            val urls = intent.getStringArrayListExtra(EXTRA_URLS).orEmpty()
+            val names = intent.getStringArrayListExtra(EXTRA_NAMES).orEmpty()
+            val kinds = intent.getStringArrayListExtra(EXTRA_KINDS).orEmpty()
+            val sources = urls.mapIndexed { i, url -> ImportedSource(url, names.getOrNull(i) ?: url, url,
+                SourceKind.entries.firstOrNull { it.name == kinds.getOrNull(i) } ?: SourceKind.UNKNOWN) }
+            TvPlaybackViewModel(applicationContext, SourceRepository(network.service(GithubSourceService::class.java)), network,
+                sources, intent.getBooleanExtra(EXTRA_PARTIAL, false))
+        }
 
     private val handler = Handler(Looper.getMainLooper())
     private var state = TvPlaybackState()
     private var previewMs: Long? = null
-    private var gestureSource: TvPreviewSource? = null
+    private var gestureSource: String? = null
     private var downX = 0f
     private var downY = 0f
     private var gestureStartMs = 0L
@@ -47,7 +69,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             val key = heldKey ?: return
             longSeekStarted = true
             val duration = state.durationMs
-            if (state.seekable && duration != null && duration > 0 && gestureSource == state.source) {
+            if (state.seekable && duration != null && duration > 0 && gestureSource == state.activeId) {
                 val delta = if (key == KeyEvent.KEYCODE_DPAD_RIGHT) 10_000L else -10_000L
                 previewMs = TvPreviewSeekMath.step(previewMs ?: state.positionMs, delta, duration)
                 renderProgress()
@@ -57,9 +79,10 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             handler.postDelayed(this, 350L)
         }
     }
-    private val sourceAdapter = TvPreviewSourceAdapter { source ->
+    private val sourceAdapter = TvPreviewSourceAdapter { row ->
         closePlaylist()
-        viewModel.onEvent(TvPlaybackEvent.SelectSource(source))
+        row.source?.let { viewModel.onEvent(TvPlaybackEvent.SelectSource(it)) }
+            ?: row.imported?.let { viewModel.onEvent(TvPlaybackEvent.SelectImported(it)) }
     }
 
     override fun initView() {
@@ -76,7 +99,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.progress.onTracking = { target ->
             handler.removeCallbacks(hideControls)
             showControls(scheduleHide = false)
-            gestureSource = state.source
+            gestureSource = state.activeId
             previewMs = target
             if (target == null) binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
             renderProgress()
@@ -119,17 +142,20 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             "RELEASED" -> R.string.s_tv_preview_released
             else -> R.string.s_tv_preview_status_unknown
         })
-        binding.status.text = if (state.error != null) {
+        binding.status.text = if (state.sourceResolving) getString(R.string.s_tv_preview_preparing) else if (state.error != null) {
             getString(R.string.s_tv_preview_status_with_error, status)
         } else status
-        val sourceName = getString(TvPreviewSourceAdapter.sourceLabel(state.source))
+        val sourceName = state.activeName ?: getString(TvPreviewSourceAdapter.sourceLabel(state.source))
         binding.title.text = getString(if (state.phase == "PLAYING") R.string.s_tv_preview_now_playing
             else R.string.s_tv_preview_source_title, sourceName)
         binding.toggle.setText(if (state.phase in setOf("PLAYING", "BUFFERING", "PREPARING"))
             R.string.s_tv_preview_pause else R.string.s_tv_preview_play)
-        sourceAdapter.submitList(TvPreviewSource.entries.map {
-            TvPreviewSourceRow(it, it == state.source, it == state.source && state.phase == "PLAYING")
+        sourceAdapter.submitList((if (state.imported.isEmpty()) TvPreviewSource.entries.map {
+            TvPreviewSourceRow(it, null, it.name == state.activeId, it.name == state.activeId && state.phase == "PLAYING")
+        } else emptyList()) + state.imported.map {
+            TvPreviewSourceRow(null, it, it.id == state.activeId, it.id == state.activeId && state.phase == "PLAYING")
         })
+        binding.importStatus.text = if (state.importPartial) getString(R.string.s_tv_import_partial) else ""
         renderProgress()
     }
 
@@ -162,7 +188,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.playlistPanel.visibility = View.VISIBLE
         binding.playlist.post {
             if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
-                val index = TvPreviewSource.entries.indexOf(state.source).coerceAtLeast(0)
+                val index = sourceAdapter.currentList.indexOfFirst { it.id == state.activeId }.coerceAtLeast(0)
                 binding.playlist.scrollToPosition(index)
                 binding.playlist.post {
                     if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
@@ -198,7 +224,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                     handler.removeCallbacks(seekStep)
                     heldKey = event.keyCode
-                    gestureSource = state.source
+                    gestureSource = state.activeId
                     longSeekStarted = false
                     previewMs = null
                     showControls(scheduleHide = false)
@@ -223,7 +249,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
                 downX = event.x; downY = event.y; touchMode = 0
                 gestureStartMs = state.positionMs
                 gestureDurationMs = state.durationMs ?: 0L
-                gestureSource = state.source
+                gestureSource = state.activeId
                 showControls(scheduleHide = false)
                 return true
             }
@@ -233,7 +259,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
                 val slop = ViewConfiguration.get(this).scaledTouchSlop
                 if (touchMode == 0) touchMode = TvPreviewSeekMath.axis(dx, dy, slop)
                 if (touchMode == 1) {
-                    if (state.seekable && gestureDurationMs > 0 && binding.video.width > 0 && gestureSource == state.source) {
+                    if (state.seekable && gestureDurationMs > 0 && binding.video.width > 0 && gestureSource == state.activeId) {
                         previewMs = TvPreviewSeekMath.drag(gestureStartMs, dx, binding.video.width, gestureDurationMs)
                         renderProgress()
                     } else binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
@@ -260,7 +286,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
 
     private fun commitSeek(target: Long?) {
-        if (target != null && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.source) {
+        if (target != null && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.activeId) {
             viewModel.onEvent(TvPlaybackEvent.SeekTo(target))
         }
     }

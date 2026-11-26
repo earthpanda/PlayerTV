@@ -3,7 +3,7 @@
 机器可读的真实声明在 [版本目录](../../gradle/libs.versions.toml)、根/四模块 Gradle 与 [settings](../../settings.gradle.kts)。初始化记录见 [.template-lock.json](../../.template-lock.json)，不引用外部原工程。
 
 - 模板版本：0.4.0；能力：none；工具库：com.blankj:utilcodex:1.31.1。
-- 播放器：`com.ai.media:playback-android:0.1.0`，仅声明在 app；通过本机 PlaybackSDK 的 Maven 发布仓库解析，`playbackMavenRepository` 可覆盖仓库位置。选用此独立 SDK 以共享 GStreamer 播放内核；会引入 native 库和 SDK 清单中的 INTERNET 权限。本机 debug 依赖已解析并构建，电视播放尚未验证。
+- 播放器：`com.ai.media:playback-android:0.1.0`，仅声明在 app；固定通过相邻 `PlaybackSDK-playtv/build/repository` Maven 仓库解析。选用此独立 SDK 以共享 GStreamer 播放内核；会引入 native 库和 SDK 清单中的 INTERNET 权限。其他机器构建时需先在相同相对位置准备该发布仓库。
 - 初始化时本机仓库 AAR SHA-256 为 `fb04deaa5f3bb147915dcf5da98bb74ffcb9b7500f303b90df20d4e95077453d`，对应 PlaybackSDK 历史受控验证产物；这是一次核对，并非 Gradle 校验锁。同版本如果被重新发布可发生覆盖，构建前应核对摘要；正式分发需不可变版本和可追溯的产物。SDK 当前仅 arm64-v8a、minSdk 26，尚未在电视设备验证。
 - 构建组合：AGP/Kotlin 见版本目录；Gradle 8.13、JDK 17、compile/target/min SDK 35/35/26。
 - Gradle 版本采用 AGP 8.13 文档给出的默认/最低 8.13；并非复制源项目的 Wrapper 9.2.1。完整组合尚未构建验证。
@@ -19,7 +19,7 @@
 
 后续网络/图片能力的默认方案见本文末尾，以下清单只反映本次实际生成的依赖，不因存在规则就视为已启用。
 
-- 本地 PlaybackSDK Maven：默认 `../PlaybackSDK/build/repository`，仅 `com.ai.media` 使用，可通过 `playbackMavenRepository` 覆盖。
+- 本地 PlaybackSDK Maven：固定 `../PlaybackSDK-playtv/build/repository`，仅 `com.ai.media` 使用。
 - 阿里云 HTTP public: `http://maven.aliyun.com/nexus/content/groups/public/`（显式允许 HTTP）
 - 阿里云 jcenter: `http://maven.aliyun.com/nexus/content/repositories/jcenter`（显式允许 HTTP）
 - 阿里云 HTTPS public: `https://maven.aliyun.com/repository/public`
@@ -47,12 +47,12 @@
 
 ## 公共基础与能力状态
 
-- `network`：未启用，不生成其源码或 SDK 依赖。
+- `network`：已接入模板源码及 OkHttp 4.12.0、Retrofit/converter-gson 2.9.0、Gson 2.10.1；debug 地址解析调用。
 - `image`：未启用，不生成其源码或 SDK 依赖。
 - `sse`：未启用，不生成其源码或 SDK 依赖。
 - `websocket`：未启用，不生成其源码或 SDK 依赖。
 - `permissions`：未启用，不生成其源码或 SDK 依赖。
-- `feedback`：未启用，不生成其源码或 SDK 依赖。
+- `feedback`：已接入模板 base 公共源码及资源，使用既有 AndroidX 并声明 lifecycle-runtime-ktx，无新增第三方 SDK。
 - `mmkv`：未启用，不生成其源码或 SDK 依赖。
 - `preferences`：未启用，不生成其源码或 SDK 依赖。
 - `room`：未启用，不生成其源码或 SDK 依赖。

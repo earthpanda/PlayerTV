@@ -51,3 +51,29 @@
 更正此前对“闪退”的判断：系统 `exit-info` 记录 17:07:02、17:16:41、17:17:27 均为 PlayTV 原生崩溃；后两次日志确认均在切换 `GITHUB_WEBM` 后出现，音频解码失败并触发原生断言/`SIGABRT`。根因仍由能力侧定位，详见[协作记录](../collaboration/player-ui-capability.md)。此样本在最新源码中暂时禁用并标明待修复，不声称已修复；最新 APK 尚未安装验证。
 
 当前验证页仍待设备验收：截图中的图标资产和正式设计宽度未提供，视觉还原与真实电视交互待验收。M3U 列表加载/解析、其余格式解码、长按/横滑/上滑、暂停、后台释放及受影响旧播放路径仍待验证；用户侧反馈的旧 Bunny 画面不代表本轮回归通过。
+
+## 网络地址识别与导入（debug 技术验证）
+
+输入框取得焦点后，触摸其范围外的页面会收起键盘、清除焦点及当前输入错误提示，并保留地址；触摸提交和测试来源仍应正常执行。遥控器焦点移动不拦截。该行为复用 `KeyboardController`，控制器随 Activity 销毁释放；需在中英文、键盘显示/隐藏及提交时验证。
+
+退出崩溃追溯：`deb8ba...` 包在 V2244A 的 19:03:14、19:04:51 两次退出播放页发生 Java 崩溃；`build/verification/source-entry-20261126/crash-close-15912.log` 记录 `NetworkOnMainThreadException`，栈为 `NetworkDependencies.close → ConnectionPool.evictAll → TLS socket.close`，由 ViewModel.onCleared 主线程调用。问题来源为本次采用的网络模板原同步关闭方式和接入时遗漏生命周期线程验证，修改层是公共网络依赖及模板；改为 close 立即禁止新操作、IO 异步关闭，提供 awaitClosed 等待实际完成。全局审阅本项目网络/文件/关闭调用：响应体正常、失败和取消收尾在 IO；Retrofit JSON 转换及拦截器由 OkHttp 工作线程执行、错误体由 Retrofit 缓冲；文件写入已在 IO，模板及业务项目的目录规范化和 Uri 授权也改为挂起并切到 IO。其余 UI 控制器的 close 只清理 UI/回调，播放器 close 的非阻塞契约由 SDK 负责。该审阅是静态范围检查，不保证所有平台/第三方内部实现无阻塞；修复后需进行至少 20 次同条件播放后返回、并发 close/取消和旧路径验证。
+
+取消路径仍需专项核查：OkHttp 4.12 `RealCall.cancel()` 会同步调用活动 Exchange 的取消方法；Retrofit 挂起请求被主线程取消时是否导致设备上的 socket 关闭阻塞尚未验证，不能由响应体关闭切至 IO 推断整个取消链均在 IO。
+
+追加复测：`deb8ba...` 包在同一设备、同一 VideoLingo `demo.mp4` 地址上共完成 20 次进入并达到 SDK PLAYING；第 4 至第 20 次记录在 `build/verification/source-entry-20261126/direct-repeat.txt`。该直链的 20 次目标已达到，旧失败根因依然待查；此结果不替代其他格式、失败恢复及仓库解析的验收。
+
+新增 debug 地址输入页，选择示例或输入 HTTPS 地址后点击解析，使用模板公共操作 Loading，允许取消；成功后进入播放页、自动选择首个可用候选。直接媒体、HLS 或 DASH 是单项列表；M3U 频道列表和 `名称,地址` TXT 生成多个候选，最多加载前 100 个，超限、无法支持的条目或扫描截断需明确提示。已知会原生闪退的 WebM 样本仍禁用。来源维度分为 GitHub 仓库、GitHub 文件/附件和普通网络地址；内容维度分为媒体候选、频道列表、HLS、DASH、未知。仓库按 GitHub 默认分支 tree 查文件及 Markdown 中直接链接，至多检查 12 个 Markdown 和 8 个列表文件；结果是候选，不能当作已解码。扩展名仅作发现线索，HLS 与频道列表依内容判断。网站及网盘分享页不能直接交 SDK；用户所列工具仓库亦不能假设含现成视频。GitHub API 限流、私有仓库、HTTP、组播、需要额外请求头或交互授权的源暂不能完整处理。失败、空结果、部分结果和解析中均有状态；禁止重复提交，取消和离页由 ViewModel 取消；不会在日志显示 URL、凭据或签名。结果保留原始地址，选择时重新解析有限次 HTTPS 跳转，不持久化签名地址。
+
+真机 VideoLingo 首次解析后出现 `utils.ts`、`next-env.d.ts` 排在 `demo.mp4` 前，播放器首项报 `UNSUPPORTED_MEDIA`；列表截图 `build/verification/source-entry-20261126/videolingo-list.png` 显示了错误候选。证据支持的根因是本次解析实现把 `.ts` 扩展名直接当作 MPEG-TS 文件，而该仓库中的同后缀文件是 TypeScript 源码；属于本轮业务解析实现遗漏，并非据此证明 SDK 的 TS 播放能力缺失。修复层为 model 的来源解析：仓库内 `.ts` 候选最多抽查 8 项、读取头部验证 188 字节包同步特征，通过才放入播放列表，超限提示部分结果；用户直接输入 TS 或清单内的 TS 地址仍交播放侧。该探测只覆盖常见 188 字节包，其他 TS 变体可能漏检。修复后需同样的真实仓库及单测复验，不以网络地址响应代替播放验收。
+
+用户给出的 IPTV2025 IPv4 清单在 V2244A 上成功生成频道列表（截图 `build/verification/source-entry-20261126/iptv-list.png`），但首个 HTTPS 候选 CCTV17 在交给 SDK 前的地址解析阶段失败，原因尚未定位，不能将其归为 SDK 解码问题。检查发现当首项解析失败且 SDK 仍处于 IDLE 时，播放键不能正确重试该来源；原因是本次业务层仅保留 SDK 已接受的来源，未保留待解析来源，修复层为 ViewModel，记录待解析项并在 IDLE/失败时重试。需用可控失败/恢复场景和设备实际重试复验，不能仅凭代码修改宣称已修复。
+
+`-DTest=true` 时显示示例地址选择，留空可进入原测试列表；未传或 false 时不显示示例，留空提示输入且不进入播放。构建验证默认传 true。测试列表追加 FLV、AVI、MOV、M4V、TS 及标明音频的 MP3/M4A 样本；GitHub 上的 FLV/MP3/M4A 和 filesamples 上四个视频在本机曾返回媒体响应，后者不支持本次 Range 请求，不能据此认定 SDK 播放或定位可用。扩展名为 AAC 的候选经 ffprobe 实为 MP4 音频容器，未当作裸 AAC 添加。
+
+复用现有全屏列表及 BaseMvi 组件，以文字输入控件作为技术预览；既有焦点、播放、手势、进度及后台行为需保持。用户明确的图片资产与正式宽度仍未提供，页面不是正式 UI。网络使用项目模板 network 的客户端和 Retrofit/Gson，GitHub JSON 走类型化 Service/Repository，其他清单及跳转有界读取，超时、关闭响应体、取消及无鉴权跨域。新增 OkHttp 4.12.0、Retrofit/converter-gson 2.9.0、Gson 2.10.1；feedback 模板提供可取消 Loading，不新增播放依赖。验证须覆盖分类、相对地址、失败/取消、部分扫描、直接地址和旧播放路径，单测、构建、真机分别记录实际结果。来源示例只用于发现与验证，响应成功不代表影片可播放或之后一直有效。
+
+本轮 `:model:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug --no-daemon --offline -DTest=true` 成功，解析规则/仓库夹具 8 项和原手势 6 项通过；其仓库测试使用受控假 Service，不等同真实网络链路。另以 `-DTest=false` 生成 BuildConfig 并核对 false，再恢复 true 构建；false 包交互尚未在设备验证。APK SHA-256 `707ca6c234f06477ed6b7e5c5567bc9bf8af79dafbf6421a78d8e8816b670d8c`，V2244A / Android 14 安装后拉回摘要一致；输入页及测试来源入口显示一次，其他会话的安装器随后抢占前台，空地址进入、实际解析与旧播放流程尚未完成有效设备验证。桌面网络对用户指定 VideoLingo 仓库的 GitHub API 请求返回 403 限流；此前原始媒体文件和附件重定向能响应，不代表本轮 APK 已解析成功。结构扫描 70 个 Kotlin 文件、0 确定性违规；代码变化后仍须重跑并审阅。按一般功能默认 3 次有效轮次，当前尚未达到，不得称为完整验收。
+
+后续验证：`707ca6...` 包的空地址进入默认 Bunny 并达到 PLAYING 共 3 次，其中一次截图显示画面；该结果不替代新包全部旧路径回归。`aa8b6e...` 包修正 `.ts` 误判后，设备 GitHub API 返回 `403 rate limit exceeded`，未达到目标仓库复测场景；此为 0 个有效修复复测轮次，目标 10 次，暂不能称该问题已验收。该包的 IPTV2025 清单生成了频道列表但首项解析阶段失败，参见上文。
+
+同设备对 VideoLingo 的 `demo.mp4` 直接地址，`4d47be...` 包显示解析失败；设备系统 curl 对同地址返回 200。未记录到失败异常类型，故原因和来源尚未查实；业务解析实现随后将媒体响应的读取及关闭移到 IO 线程，避免可能的主线程网络操作，属于依据调用链的推断性修正。`deb8ba18e2b7c27aee701fd239584867a86e7969d020579614f5f0951fb961ac` 包安装后同地址 3 次达到 PLAYING，一次截图见 `build/verification/source-entry-20261126/direct-io-result.png`，列表仅含一项的截图见 `direct-single-list.png`；这一结果支持新路径可用，但不能证明旧失败根因或完整修复。该公共解析链按较高影响需 20 次有效同条件复测，当时完成 3 次（后续补足至 20 次，见上方追加记录）；仍需覆盖取消、失败恢复和旧来源。最新包 16 项单测通过，含解析与受控仓库夹具 10 项、手势 6 项；结构扫描 71 个 Kotlin 文件、0 硡定性违规。IPTV 同一首项在最新包显示播放失败，缺少可归因日志，待核对 SDK 初始化、网络和流内容，不得直接认定解码故障。手机安装器与其他会话交替占用，真实电视、false 包、声音及其余容器仍待验收。

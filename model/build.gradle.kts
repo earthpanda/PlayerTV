@@ -23,4 +23,8 @@ kotlin { jvmToolchain(17) }
 
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
+    implementation(project(":support"))
+    implementation(libs.retrofit)
+    implementation(libs.gson)
+    testImplementation(libs.junit)
 }

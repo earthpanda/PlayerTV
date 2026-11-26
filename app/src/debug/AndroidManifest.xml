@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <application>
         <activity android:name=".ui.test.sample.SampleActivity" tools:node="remove" />
-        <activity android:name=".ui.test.tvplayback.TvPlaybackActivity" android:exported="true" android:screenOrientation="landscape">
+        <activity android:name=".ui.test.tvplayback.TvPlaybackActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ui.test.sourceentry.SourceEntryActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

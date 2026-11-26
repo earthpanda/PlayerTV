@@ -19,5 +19,10 @@ android {
 kotlin { jvmToolchain(17) }
 
 dependencies {
-
+    implementation(project(":base"))
+    api(libs.okhttp)
+    api(libs.retrofit)
+    api(libs.gson)
+    implementation(libs.converter.gson)
+    implementation(libs.kotlinx.coroutines.core)
 }
