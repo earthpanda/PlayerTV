@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_marginTop="4pt" android:background="@drawable/tv_preview_source_background"
+    android:clickable="true" android:focusable="true" android:gravity="center_vertical"
+    android:minHeight="48pt" android:orientation="horizontal" android:paddingStart="14pt" android:paddingEnd="14pt">
+    <TextView android:id="@+id/source_name" android:layout_width="0dp" android:layout_height="wrap_content"
+        android:layout_weight="1" android:ellipsize="marquee" android:marqueeRepeatLimit="marquee_forever"
+        android:singleLine="true" android:textColor="#FFFFFF" android:textSize="14pt" />
+    <TextView android:id="@+id/source_state" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginStart="12pt" android:textColor="#FFFFFF" android:textSize="12pt" />
+</LinearLayout>

@@ -1,0 +1,273 @@
+package com.ai.playtv.ui.test.tvplayback
+
+import android.os.Handler
+import android.os.Looper
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.SurfaceHolder
+import android.view.View
+import android.view.ViewConfiguration
+import androidx.lifecycle.ViewModelProvider
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.ai.playtv.R
+import com.ai.playtv.databinding.ActivityTvPlaybackBinding
+import com.ai.playtv.di.viewModelFactory
+import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
+import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
+import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
+import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
+import com.ai.playtv.ui.BaseMviActivity
+import java.util.Locale
+
+class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlaybackState,
+    TvPlaybackEvent, TvPlaybackEffect, TvPlaybackViewModel>(ActivityTvPlaybackBinding::inflate), SurfaceHolder.Callback {
+    override val viewModelClass = TvPlaybackViewModel::class.java
+    override fun createViewModelFactory(): ViewModelProvider.Factory =
+        viewModelFactory(viewModelClass) { TvPlaybackViewModel(applicationContext) }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var state = TvPlaybackState()
+    private var previewMs: Long? = null
+    private var gestureSource: TvPreviewSource? = null
+    private var downX = 0f
+    private var downY = 0f
+    private var gestureStartMs = 0L
+    private var gestureDurationMs = 0L
+    private var touchMode = 0 // 0 undecided, 1 horizontal, 2 vertical
+    private var heldKey: Int? = null
+    private var longSeekStarted = false
+    private val hideControls = Runnable {
+        binding.topControls.visibility = View.GONE
+        binding.bottomControls.visibility = View.GONE
+    }
+    private val seekStep = object : Runnable {
+        override fun run() {
+            val key = heldKey ?: return
+            longSeekStarted = true
+            val duration = state.durationMs
+            if (state.seekable && duration != null && duration > 0 && gestureSource == state.source) {
+                val delta = if (key == KeyEvent.KEYCODE_DPAD_RIGHT) 10_000L else -10_000L
+                previewMs = TvPreviewSeekMath.step(previewMs ?: state.positionMs, delta, duration)
+                renderProgress()
+            } else {
+                binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
+            }
+            handler.postDelayed(this, 350L)
+        }
+    }
+    private val sourceAdapter = TvPreviewSourceAdapter { source ->
+        closePlaylist()
+        viewModel.onEvent(TvPlaybackEvent.SelectSource(source))
+    }
+
+    override fun initView() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        binding.video.holder.addCallback(this)
+        binding.video.setOnTouchListener { _, event -> onVideoTouch(event) }
+        binding.toggle.setOnClickListener { showControls(); viewModel.onEvent(TvPlaybackEvent.Toggle) }
+        binding.closePlaylist.setOnClickListener { closePlaylist() }
+        binding.playlist.layoutManager = LinearLayoutManager(this)
+        binding.playlist.adapter = sourceAdapter
+        binding.progress.onTracking = { target ->
+            handler.removeCallbacks(hideControls)
+            showControls(scheduleHide = false)
+            gestureSource = state.source
+            previewMs = target
+            if (target == null) binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
+            renderProgress()
+        }
+        binding.progress.onFinishTracking = { target ->
+            commitSeek(target)
+            previewMs = null
+            renderProgress()
+            scheduleHide()
+        }
+    }
+    override fun onStart() { super.onStart(); viewModel.foreground(); showControls() }
+    override fun onStop() {
+        handler.removeCallbacks(hideControls)
+        handler.removeCallbacks(seekStep)
+        heldKey = null
+        previewMs = null
+        viewModel.onEvent(TvPlaybackEvent.Background)
+        super.onStop()
+    }
+    override fun onDestroy() { binding.video.holder.removeCallback(this); viewModel.attachSurface(null); super.onDestroy() }
+    override fun surfaceCreated(holder: SurfaceHolder) { viewModel.attachSurface(holder.surface) }
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) = Unit
+    override fun surfaceDestroyed(holder: SurfaceHolder) { viewModel.attachSurface(null) }
+
+    override fun render(state: TvPlaybackState) {
+        this.state = state
+        binding.buffering.visibility = if (state.phase == "BUFFERING") View.VISIBLE else View.GONE
+        binding.buffering.text = getString(R.string.s_tv_preview_buffer_percent, state.bufferedPercent.coerceIn(0, 100))
+        val status = getString(when (state.phase) {
+            "INITIALIZING" -> R.string.s_tv_preview_initializing
+            "IDLE" -> R.string.s_tv_preview_idle
+            "PREPARING" -> R.string.s_tv_preview_preparing
+            "PLAYING" -> R.string.s_tv_preview_playing
+            "PAUSED" -> R.string.s_tv_preview_paused
+            "BUFFERING" -> R.string.s_tv_preview_buffering
+            "ENDED" -> R.string.s_tv_preview_ended
+            "FAILED" -> R.string.s_tv_preview_failed
+            "RELEASING" -> R.string.s_tv_preview_releasing
+            "RELEASED" -> R.string.s_tv_preview_released
+            else -> R.string.s_tv_preview_status_unknown
+        })
+        binding.status.text = if (state.error != null) {
+            getString(R.string.s_tv_preview_status_with_error, status)
+        } else status
+        val sourceName = getString(TvPreviewSourceAdapter.sourceLabel(state.source))
+        binding.title.text = getString(if (state.phase == "PLAYING") R.string.s_tv_preview_now_playing
+            else R.string.s_tv_preview_source_title, sourceName)
+        binding.toggle.setText(if (state.phase in setOf("PLAYING", "BUFFERING", "PREPARING"))
+            R.string.s_tv_preview_pause else R.string.s_tv_preview_play)
+        sourceAdapter.submitList(TvPreviewSource.entries.map {
+            TvPreviewSourceRow(it, it == state.source, it == state.source && state.phase == "PLAYING")
+        })
+        renderProgress()
+    }
+
+    private fun renderProgress() {
+        val duration = state.durationMs
+        binding.progress.durationMs = duration
+        binding.progress.canSeek = state.seekable && duration != null && duration > 0
+        binding.progress.positionMs = previewMs ?: state.positionMs
+        binding.elapsed.text = time(previewMs ?: state.positionMs)
+        binding.duration.text = duration?.takeIf { it > 0 }?.let(::time)
+            ?: getString(R.string.s_tv_preview_unknown_time)
+    }
+
+    private fun showControls(scheduleHide: Boolean = true) {
+        binding.topControls.visibility = View.VISIBLE
+        binding.bottomControls.visibility = View.VISIBLE
+        binding.hint.setText(R.string.s_tv_preview_controls_hint)
+        handler.removeCallbacks(hideControls)
+        if (scheduleHide) scheduleHide()
+    }
+
+    private fun scheduleHide() {
+        handler.removeCallbacks(hideControls)
+        handler.postDelayed(hideControls, 5_000L)
+    }
+
+    private fun openPlaylist() {
+        handler.removeCallbacks(hideControls)
+        hideControls.run()
+        binding.playlistPanel.visibility = View.VISIBLE
+        binding.playlist.post {
+            if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
+                val index = TvPreviewSource.entries.indexOf(state.source).coerceAtLeast(0)
+                binding.playlist.scrollToPosition(index)
+                binding.playlist.post {
+                    if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
+                        binding.playlist.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus()
+                            ?: binding.playlist.requestFocus()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun closePlaylist() {
+        binding.playlistPanel.visibility = View.GONE
+        showControls()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (binding.playlistPanel.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) openPlaylist()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    showControls()
+                    viewModel.onEvent(TvPlaybackEvent.Toggle)
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    handler.removeCallbacks(seekStep)
+                    heldKey = event.keyCode
+                    gestureSource = state.source
+                    longSeekStarted = false
+                    previewMs = null
+                    showControls(scheduleHide = false)
+                    handler.postDelayed(seekStep, ViewConfiguration.getLongPressTimeout().toLong())
+                } else if (event.action == KeyEvent.ACTION_UP && heldKey == event.keyCode) {
+                    handler.removeCallbacks(seekStep)
+                    heldKey = null
+                    if (longSeekStarted && !event.isCanceled) commitSeek(previewMs)
+                    previewMs = null
+                    renderProgress()
+                    scheduleHide()
+                }
+                return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun onVideoTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x; downY = event.y; touchMode = 0
+                gestureStartMs = state.positionMs
+                gestureDurationMs = state.durationMs ?: 0L
+                gestureSource = state.source
+                showControls(scheduleHide = false)
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - downX
+                val dy = event.y - downY
+                val slop = ViewConfiguration.get(this).scaledTouchSlop
+                if (touchMode == 0) touchMode = TvPreviewSeekMath.axis(dx, dy, slop)
+                if (touchMode == 1) {
+                    if (state.seekable && gestureDurationMs > 0 && binding.video.width > 0 && gestureSource == state.source) {
+                        previewMs = TvPreviewSeekMath.drag(gestureStartMs, dx, binding.video.width, gestureDurationMs)
+                        renderProgress()
+                    } else binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                if (touchMode == 1) commitSeek(previewMs)
+                else if (TvPreviewSeekMath.opensPlaylist(touchMode, event.y - downY,
+                        ViewConfiguration.get(this).scaledTouchSlop)) openPlaylist()
+                previewMs = null
+                renderProgress()
+                if (binding.playlistPanel.visibility != View.VISIBLE) scheduleHide()
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                previewMs = null
+                renderProgress()
+                scheduleHide()
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun commitSeek(target: Long?) {
+        if (target != null && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.source) {
+            viewModel.onEvent(TvPlaybackEvent.SeekTo(target))
+        }
+    }
+    override fun handleEffect(effect: TvPlaybackEffect) = Unit
+    private fun time(ms: Long): String {
+        val seconds = (ms / 1000).coerceAtLeast(0)
+        return if (seconds >= 3600) String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
+        else String.format(Locale.ROOT, "%02d:%02d", seconds / 60, seconds % 60)
+    }
+}
