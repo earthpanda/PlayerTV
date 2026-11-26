@@ -85,4 +85,5 @@
     </string-array>
     <string name="s_tv_import_discovering">Finding more sources…</string>
     <string name="s_tv_import_discovery_failed">Some sources could not be found. Available sources remain usable.</string>
+    <string name="s_tv_http_forbidden">Server rejected the request (HTTP 403)</string>
 </resources>

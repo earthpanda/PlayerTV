@@ -16,6 +16,7 @@ import com.ai.playtv.BuildConfig
 import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.base.ui.loading.OperationLoadingController
 import com.ai.playtv.base.ui.KeyboardController
+import com.ai.playtv.base.ui.message.MessageController
 import com.ai.playtv.databinding.ActivitySourceEntryBinding
 import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.model.contract.sourceentry.*
@@ -29,6 +30,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         SourceEntryViewModel((application as SourcePreviewApplication).discoveryOwner, BuildConfig.TEST_MODE)
     }
     private lateinit var loading: OperationLoadingController
+    private lateinit var messages: MessageController
     private lateinit var keyboard: KeyboardController
     private var imeVisible = false
     private var handledDirection: Int? = null
@@ -41,6 +43,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
     }
     override fun initView() {
         loading = OperationLoadingController(this)
+        messages = MessageController(this)
         keyboard = KeyboardController(binding.sourceUrl)
         onBackPressedDispatcher.addCallback(this, inputBack)
         binding.sourceUrl.setOnFocusChangeListener { _, focused ->
@@ -145,6 +148,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             "CLOUD" -> getString(R.string.s_tv_import_cloud)
             "WEBSITE" -> getString(R.string.s_tv_import_website)
             "RATE_LIMIT" -> getString(R.string.s_tv_import_rate_limit)
+            "HTTP_403" -> getString(R.string.s_tv_http_forbidden)
             "REQUIRED" -> getString(R.string.s_tv_import_required)
             "FAILED" -> getString(R.string.s_tv_import_failed)
             else -> ""
@@ -153,6 +157,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
     override fun handleEffect(effect: SourceEntryEffect) {
         when (effect) {
             SourceEntryEffect.OpenDefaults -> startActivity(Intent(this, TvPlaybackActivity::class.java))
+            SourceEntryEffect.ServerForbidden -> messages.show(getString(R.string.s_tv_http_forbidden))
             is SourceEntryEffect.OpenPlayer -> {
                 val intent = Intent(this, TvPlaybackActivity::class.java)
                 intent.putExtra(TvPlaybackActivity.EXTRA_SESSION_ID, effect.sessionId)

@@ -34,13 +34,19 @@ class SourceRepositoryTest {
         var treeResult = GithubTreeDto(false, emptyList())
         val bodies = mutableMapOf<String, Pair<String, String>>()
         val responseBodies = mutableMapOf<String, ResponseBody>()
+        val statuses = mutableMapOf<String, Int>()
+        var repositoryFailure: Exception? = null
         val redirects = mutableMapOf<String, String>()
         var beforeContent: suspend (String) -> Unit = {}
-        override suspend fun repository(owner: String, repo: String) = GithubRepositoryDto("main")
+        override suspend fun repository(owner: String, repo: String): GithubRepositoryDto {
+            repositoryFailure?.let { throw it }
+            return GithubRepositoryDto("main")
+        }
         override suspend fun tree(owner: String, repo: String, ref: String) = treeResult
         override suspend fun commit(owner: String, repo: String, ref: String) = JsonObject()
         override suspend fun content(url: String): Response<ResponseBody> {
             beforeContent(url)
+            statuses[url]?.let { return Response.error(it, "".toResponseBody()) }
             responseBodies[url]?.let { return Response.success(it) }
             redirects[url]?.let { location ->
                 val raw = okhttp3.Response.Builder().request(Request.Builder().url(url).build()).protocol(Protocol.HTTP_1_1)
@@ -91,6 +97,47 @@ class SourceRepositoryTest {
         assertEquals("https://example.org/b", repo.playbackUrl("https://example.org/a"))
         fake.redirects["https://example.org/b"] = "/a"
         try { repo.playbackUrl("https://example.org/a"); fail("loop should fail") } catch (_: IOException) { }
+    }
+
+    @Test fun rawHttpFailuresKeepStatusForDiscoveryAndPlayback() = runBlocking {
+        val fake = FakeService()
+        val url = "https://example.org/source"
+        val repo = SourceRepository(fake)
+        for (status in listOf(403, 404)) {
+            fake.statuses[url] = status
+            for (action in listOf<suspend () -> Unit>({ repo.discover(url); Unit }, { repo.playbackUrl(url); Unit })) {
+                try { action(); fail("HTTP failure expected") }
+                catch (error: SourceHttpFailure) { assertTrue(status == error.sourceHttpStatus()) }
+            }
+        }
+        assertNull(IOException("socket failure").sourceHttpStatus())
+    }
+
+    @Test fun forbiddenInputAndGithubApiBothReport403WithoutTreating404AsForbidden() = runBlocking {
+        for (status in listOf(403, 404)) {
+            for (github in listOf(false, true)) {
+                val fake = FakeService()
+                val url = if (github) "https://github.com/example/repo" else "https://example.org/source"
+                if (github) fake.repositoryFailure = retrofit2.HttpException(Response.error<GithubRepositoryDto>(status, "".toResponseBody()))
+                else fake.statuses[url] = status
+                val released = CompletableDeferred<Unit>()
+                val session = SourceDiscoverySession(SourceRepository(fake), url, { released.complete(Unit) }, Dispatchers.Default)
+                val done = withTimeout(3_000) { session.state.first { !it.running } }
+                assertEquals(if (status == 403) "HTTP_403" else "FAILED", done.error)
+                session.close()
+                withTimeout(3_000) { released.await() }
+            }
+        }
+    }
+
+    @Test fun forbiddenOptionalReadmeStillKeepsMediaAsPartialResult() = runBlocking {
+        val fake = FakeService()
+        fake.treeResult = GithubTreeDto(false, listOf(
+            GithubTreeEntryDto("demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))
+        fake.statuses["https://raw.githubusercontent.com/example/repo/main/README.md"] = 403
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(1, result.items.size)
+        assertTrue(result.partial)
     }
     @Test fun webAndCloudPagesAreNotPresentedAsMedia() = runBlocking {
         val fake = FakeService()

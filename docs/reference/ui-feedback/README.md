@@ -2,7 +2,7 @@
 
 从 [组件目录](../../rule/ui-component-catalog.md) 按“加载/轻提示/确认/去设置”等描述定位真实入口；行为与新增交付遵循 [公共反馈规则](../../rule/ui-feedback-rules.md)。本文件演示现有 API 和登记方法，选填运行实现由 feedback 包交付。
 
-本项目已接入 feedback 的 base 公共源码与资源；地址输入页使用操作 Loading。消息和确认入口暂无业务调用，模板演练页未接入；验证状态以组件目录及功能 Spec 为准。
+本项目已接入 feedback 的 base 公共源码与资源；地址输入页使用操作 Loading，debug 来源入口和播放页用 MessageController 提示 HTTP 403。确认入口暂无业务调用，模板演练页未接入；验证状态以组件目录及功能 Spec 为准。
 
 ## 已有页面状态怎样使用
 

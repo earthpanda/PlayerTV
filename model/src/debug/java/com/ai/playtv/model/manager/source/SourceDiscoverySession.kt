@@ -2,6 +2,7 @@ package com.ai.playtv.model.manager.source
 
 import com.ai.playtv.model.bean.domain.source.SourceDiscovery
 import com.ai.playtv.model.repository.source.SourceRepository
+import com.ai.playtv.model.repository.source.sourceHttpStatus
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -43,7 +44,7 @@ class SourceDiscoverySession(
             } catch (error: Exception) {
                 if (!closed.get()) mutableState.value = mutableState.value.copy(
                     running = false,
-                    error = if (error is retrofit2.HttpException && error.code() == 403) "RATE_LIMIT" else "FAILED",
+                    error = if (error.sourceHttpStatus() == 403) "HTTP_403" else "FAILED",
                 )
             }
         }

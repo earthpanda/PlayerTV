@@ -156,7 +156,8 @@ class SourceRepository(private val service: GithubSourceService) {
                     current = SourceRules.checkedUrl(URI(current).resolve(location).toString()).toString()
                     return@repeat
                 }
-                if (!response.isSuccessful || body == null) throw IOException("HTTP ${response.code()}")
+                if (!response.isSuccessful) throw SourceHttpFailure(response.code())
+                if (body == null) throw IOException("Missing response body")
                 return withContext(Dispatchers.IO) {
                     if (!readText) return@withContext Fetched(current, null, false)
                     if (probeTransport) {

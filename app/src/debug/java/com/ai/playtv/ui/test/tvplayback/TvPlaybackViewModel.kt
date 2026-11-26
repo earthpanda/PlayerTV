@@ -15,11 +15,14 @@ import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
 import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.repository.source.SourceRepository
+import com.ai.playtv.model.repository.source.sourceHttpStatus
 import com.ai.playtv.di.NetworkDependencies
 import com.ai.playtv.di.SourceDiscoveryOwner
 import com.ai.playtv.model.manager.source.SourceDiscoverySession
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 /** Debug-only session; all player and surface commands are issued on main. */
@@ -70,7 +73,12 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
 
     init {
         if (session != null) viewModelScope.launch {
+            var errorReported = false
             session.state.collect { snapshot ->
+                if (!errorReported && snapshot.error == "HTTP_403") {
+                    errorReported = true
+                    setEffect(TvPlaybackEffect.ServerForbidden)
+                }
                 setState { copy(imported = snapshot.result?.items ?: imported,
                     importPartial = snapshot.result?.partial == true,
                     discoveryRunning = snapshot.running,
@@ -166,8 +174,10 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 report(result)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
                 Log.w("PlayTvPreview", "source resolution failed: ${error.javaClass.simpleName}")
                 setState { copy(sourceResolving = false, error = "SOURCE_RESOLUTION_FAILED") }
+                if (error.sourceHttpStatus() == 403) setEffect(TvPlaybackEffect.ServerForbidden)
             }
         }
     }

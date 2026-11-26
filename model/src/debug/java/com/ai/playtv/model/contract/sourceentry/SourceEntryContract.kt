@@ -12,5 +12,6 @@ sealed interface SourceEntryEvent : UiEvent {
 }
 sealed interface SourceEntryEffect : UiEffect {
     data object OpenDefaults : SourceEntryEffect
+    data object ServerForbidden : SourceEntryEffect
     data class OpenPlayer(val sessionId: String) : SourceEntryEffect
 }

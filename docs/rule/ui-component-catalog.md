@@ -11,7 +11,7 @@
 | `loading.page` | 首屏加载、页面转圈、空态、加载失败重试 | 已交付：`PageStateLayout.render(PageStatus)`；`app/src/main/java/com/ai/playtv/view/state/PageStateLayout.kt`；SampleActivity.render 调用 | 由 State 渲染首屏阶段；不代替提交遮罩 |
 | `loading.refresh` | 刷新、加载更多 | 未启用 refresh；SampleActivity.render 以 State 控制文字动作；无手势容器 | 需要手势刷新时按需启用，不调用未生成 SDK |
 | `loading.operation` | 保存中、提交中、公共 loading、操作遮罩 | 已接入 `OperationLoadingController.render`；`SourceEntryActivity` 使用 | 随宿主关闭窗口；取消通过回调交给任务所有者 |
-| `message.transient` | toast、轻提示、操作成功/失败提示 | 已接入 `MessageController` 默认实现；SampleActivity 仍使用系统 Toast | 尚无项目业务调用 |
+| `message.transient` | toast、轻提示、操作成功/失败提示 | `MessageController` 默认实现用于 debug 来源解析和选台 HTTP 403；SampleActivity 仍使用系统 Toast | 设备验收待完成 |
 | `dialog.confirmation` | 二次确认、删除前确认、确定取消 | 已接入 `ConfirmationController` 默认实现 | 尚无项目业务调用；设置引导不代替确认 |
 | `loading.inline` | 按钮加载、卡片局部转圈 | 尚未交付公共局部组件；在所属区域按 State 渲染 | 无独立行为先复用布局/style，不默认遮全屏 |
 | `dialog.settings_redirect` | 不再弹权限、去设置、设置引导 | 未启用 permissions；未生成设置引导框与权限控制器 | 按需启用后读能力说明，不自行猜 API |
@@ -37,7 +37,7 @@
 | AppContainer / StartupStep | app/di/AppContainer、AppApplication；base/diagnostics/StartupStep；样例 Factory 实际使用 | 明确属性和初始化依赖，成功后发布，无 ViewModel 缓存；成功耗时需启用 INFO |
 | PageStateLayout | app/src/main/java/com/ai/playtv/view/state；样例页面使用 | model PageStatus 的 UI 渲染，不把状态定义放回 base |
 | OperationLoadingController | base/src/main/java/com/ai/playtv/base/ui/loading；SourceEntryActivity 的解析操作 | Main 线程 render 操作 ID；宿主停止时隐藏、销毁时关闭；可注入 Dialog 工厂，取消由回调交给 ViewModel；实际设备验收待完成 |
-| MessageController / ConfirmationController | base/src/main/java/com/ai/playtv/base/ui/message、dialog | 模板默认实现已接入，暂无本项目业务调用或设备验收 |
+| MessageController / ConfirmationController | base/src/main/java/com/ai/playtv/base/ui/message、dialog | MessageController 已用于 debug 来源入口与播放页的 HTTP 403 提示；ConfirmationController 暂无本项目业务调用，设备验收待完成 |
 | AndroidX ListAdapter | ui/test/sample/SampleAdapter.kt、item_sample.xml | 技术示例，正式列表按业务定义 Adapter，不复制数据模型或引入 MultiType |
 | DiagnosticLog | base/diagnostics；MVI、网络/图片失败和文件清理调用 | 默认 WARN/ERROR，结构化标量，不输出原始消息/URL/body，不上传 |
 | AppDirectories / AtomicFileStore / UriAccess | base/storage；base/src/debug/example/FoundationUsageExamples 调用 | 路径解析及 Uri 授权是挂起方法，IO 执行；流式限额、新文件原子提交及本任务临时清理；无跨进程写保证 |

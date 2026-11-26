@@ -31,6 +31,7 @@ class SourceEntryViewModel(private val owner: SourceDiscoveryOwner,
                 sessionId = newSessionId
                 handedOff = false
                 job = viewModelScope.launch {
+                    var errorReported = false
                     session.state.collect { snapshot ->
                         val result = snapshot.result
                         val first = result?.items?.firstOrNull {
@@ -46,6 +47,10 @@ class SourceEntryViewModel(private val owner: SourceDiscoveryOwner,
                                 setState { copy(loadingId = null, error = "FAILED") }
                             }
                         } else if (!handedOff && !snapshot.running) {
+                            if (!errorReported && snapshot.error == "HTTP_403") {
+                                errorReported = true
+                                setEffect(SourceEntryEffect.ServerForbidden)
+                            }
                             setState { copy(loadingId = null, error = snapshot.error ?: when {
                                 ReferenceKind.CLOUD_SHARE in result?.references.orEmpty() -> "CLOUD"
                                 ReferenceKind.WEBSITE in result?.references.orEmpty() -> "WEBSITE"

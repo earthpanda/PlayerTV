@@ -30,4 +30,6 @@ sealed interface TvPlaybackEvent : UiEvent {
     data class SelectImported(val source: ImportedSource) : TvPlaybackEvent
     data object Background : TvPlaybackEvent
 }
-sealed interface TvPlaybackEffect : UiEffect
+sealed interface TvPlaybackEffect : UiEffect {
+    data object ServerForbidden : TvPlaybackEffect
+}

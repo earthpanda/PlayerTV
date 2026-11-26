@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
 import com.ai.playtv.SourcePreviewApplication
+import com.ai.playtv.base.ui.message.MessageController
 import com.ai.playtv.databinding.ActivityTvPlaybackBinding
 import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.di.NetworkDependencies
@@ -59,6 +60,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         }
 
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var messages: MessageController
     private var state = TvPlaybackState()
     private var previewMs: Long? = null
     private var gestureSource: String? = null
@@ -104,6 +106,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
 
     override fun initView() {
+        messages = MessageController(this)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.systemBars())
@@ -313,7 +316,11 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             viewModel.onEvent(TvPlaybackEvent.SeekTo(target))
         }
     }
-    override fun handleEffect(effect: TvPlaybackEffect) = Unit
+    override fun handleEffect(effect: TvPlaybackEffect) {
+        when (effect) {
+            TvPlaybackEffect.ServerForbidden -> messages.show(getString(R.string.s_tv_http_forbidden))
+        }
+    }
     private fun time(ms: Long): String {
         val seconds = (ms / 1000).coerceAtLeast(0)
         return if (seconds >= 3600) String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
