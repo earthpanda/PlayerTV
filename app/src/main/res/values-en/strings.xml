@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="s_app_name">"PlayTV"</string>
+    <string name="s_sample_title">Template sample</string>
+    <string name="s_sample_description">Local sample data: 3 pages, 10 items per page.</string>
+    <string name="s_sample_refresh">Refresh</string>
+    <string name="s_sample_load_more">Load next page</string>
+    <string name="s_sample_item_title">Sample item %1$d</string>
+    <string name="s_sample_selected">Selected item %1$d</string>
+    <string name="s_sample_refresh_failed">Refresh failed. Existing content was kept. Please refresh again.</string>
+    <string name="s_sample_load_more_failed">Unable to load the next page. Existing content was kept. Please retry.</string>
+    <string name="s_common_loading">Loading</string>
+    <string name="s_common_empty">No content</string>
+    <string name="s_common_load_failed">Unable to load. Please retry.</string>
+    <string name="s_common_retry">Retry</string>
+</resources>

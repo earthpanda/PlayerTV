@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Template" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/template_accent</item>
+        <item name="colorSecondary">@color/template_accent</item>
+        <item name="android:windowBackground">@color/template_background</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:textViewStyle">@style/Widget.Template.TextView</item>
+    </style>
+</resources>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Neutral technical-preview tokens; replace with the new project's confirmed UI Kit. -->
+    <color name="template_background">#FFFFFF</color>
+    <color name="template_foreground">#202124</color>
+    <color name="template_accent">#2457C5</color>
+</resources>

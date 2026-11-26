@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A simple vertical content group; no duplicated design-group wrappers. -->
+    <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+        android:orientation="vertical" android:gravity="center" android:padding="16pt">
+        <ProgressBar android:id="@+id/stateProgress" android:layout_width="32pt" android:layout_height="32pt" />
+        <TextView android:id="@+id/stateMessage" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="12pt" android:text="@string/s_common_loading" />
+        <TextView android:id="@+id/stateRetry" style="@style/Widget.Template.TextAction"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/s_common_retry" />
+    </LinearLayout>
+</merge>

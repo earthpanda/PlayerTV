@@ -1,0 +1,35 @@
+[versions]
+activity = "1.10.1"
+agp = "8.13.2"
+appcompat = "1.7.1"
+constraintlayout = "2.2.1"
+core = "1.16.0"
+coroutines = "1.7.3"
+fragment = "1.8.6"
+kotlin = "2.3.10"
+lifecycle = "2.8.6"
+material = "1.12.0"
+playback = "0.1.0"
+recyclerview = "1.4.0"
+toolkit = "1.31.1"
+
+[libraries]
+androidx-activity = { module = "androidx.activity:activity", version.ref = "activity" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "constraintlayout" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
+playback-android = { module = "com.ai.media:playback-android", version.ref = "playback" }
+toolkit = { module = "com.blankj:utilcodex", version.ref = "toolkit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+

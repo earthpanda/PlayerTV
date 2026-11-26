@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "foundation_version": "0.4.0",
+  "capabilities": [],
+  "verification": "Static generation and source review only; no Android build or runtime verification.",
+  "files": {
+    "app/src/main/java/com/ai/playtv/AppApplication.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/AppApplication.kt.tpl",
+      "template_sha256": "b2dbd8588206cb557a6593b650a3c94beed54456be2d1a25baed783f35c66499",
+      "rendered_sha256": "03c0cee6bf2ebf63afb8abb7f9f1abeae3b77b8d10b5ffc7cf8bb97824bba688"
+    },
+    "app/src/main/java/com/ai/playtv/di/AppContainer.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/di/AppContainer.kt.tpl",
+      "template_sha256": "be39b1f462c22dc5591cb39036680724e5965819dad3be35596aa0c792bfd4bc",
+      "rendered_sha256": "806df6da415e520cb7d8b6fadc6c5e04fd0eef721bd62175b1c381f2d38a3ae3"
+    },
+    "app/src/main/java/com/ai/playtv/di/ViewModelFactories.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/di/ViewModelFactories.kt.tpl",
+      "template_sha256": "ec5a087ed339c5da5a05a0438aed8aa416b58cde1059ebc98168a53499174931",
+      "rendered_sha256": "0f2e09ea0eefc649630e06d77295ed551d0d18f241942ce6b85bf0159a701e1e"
+    },
+    "app/src/main/java/com/ai/playtv/domain/BaseMviViewModel.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/domain/BaseMviViewModel.kt.tpl",
+      "template_sha256": "1ec6434c3d5217252d98704973cc030d2ca8b85b5ccaef7f883171f842631752",
+      "rendered_sha256": "dcb2a48c288fb342965c00f2e1f9d77874cb2e9897e8eaee25833497d7d51f0f"
+    },
+    "app/src/main/java/com/ai/playtv/ui/BaseMviActivity.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/ui/BaseMviActivity.kt.tpl",
+      "template_sha256": "be46df4978485116fd7c8f1a5794a588f463542de6b814d68251e9b3f7705b10",
+      "rendered_sha256": "697f9e64750938d854dfd5bb898c9ee638516c9cd904c4ddd3a840d9ba2526c0"
+    },
+    "app/src/main/java/com/ai/playtv/ui/BaseMviFragment.kt": {
+      "source": "skeleton/app/src/main/java/__APP_PATH__/ui/BaseMviFragment.kt.tpl",
+      "template_sha256": "c4f5f120365cea1050b8e545dfe8e7bd22172c7670dc8549fb06a2a8865f6a34",
+      "rendered_sha256": "1f50369887a1c531d86c80179b3feef08aa575f995429bc7bc6a83b9e73d3f2d"
+    },
+    "base/build.gradle.kts": {
+      "source": "skeleton/base/build.gradle.kts.tpl",
+      "template_sha256": "d9fd6bfd16a0bd535783dde1f0969387eee28ac8be7f4b3013b594e75ecfc0ac",
+      "rendered_sha256": "f766871d0875730d5685997e6d607bb3e8a162195eb418cd1bcc333c90e41d6a"
+    },
+    "base/consumer-rules.pro": {
+      "source": "skeleton/base/consumer-rules.pro.tpl",
+      "template_sha256": "22c9d4baca03b4ca7945ebba369304ea4656f6990681cc92c22d4209f41911e9",
+      "rendered_sha256": "22c9d4baca03b4ca7945ebba369304ea4656f6990681cc92c22d4209f41911e9"
+    },
+    "base/src/main/AndroidManifest.xml": {
+      "source": "skeleton/base/src/main/AndroidManifest.xml.tpl",
+      "template_sha256": "daa0fb1f32ba7ea85a07ef6302ab3d58c3407d7fd2aa03ec132cb9e38e8d9849",
+      "rendered_sha256": "daa0fb1f32ba7ea85a07ef6302ab3d58c3407d7fd2aa03ec132cb9e38e8d9849"
+    },
+    "base/src/main/java/com/ai/playtv/base/diagnostics/DiagnosticLog.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/diagnostics/DiagnosticLog.kt.tpl",
+      "template_sha256": "578cb07f8b4a70a58e5245a1821055a71caf925b445f839cd9abfe58bcb57d64",
+      "rendered_sha256": "94bd444ffc5ff0d35fabae013dae1b603e5adca2c8fb845c9e19164f2adc66ec"
+    },
+    "base/src/main/java/com/ai/playtv/base/diagnostics/StartupStep.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/diagnostics/StartupStep.kt.tpl",
+      "template_sha256": "d83785cd6c98a1b3dc3c2ef8807095153cf10a280456e836b9f0a196a7a2f562",
+      "rendered_sha256": "c1ffe2af30d192844eccbf93544269ced67c67c8ff2ebe5cb7ee421a556ea432"
+    },
+    "base/src/main/java/com/ai/playtv/base/storage/AppDirectories.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/storage/AppDirectories.kt.tpl",
+      "template_sha256": "1c1eb992f424fbf800f766e7037cbe2217722877f9b9c32f7e4a4b1b07b30147",
+      "rendered_sha256": "d90309602eaf1dcca6efdba4e8cf84ce99cc109fb532d4f45d78d8a3991b29ad"
+    },
+    "base/src/main/java/com/ai/playtv/base/storage/AtomicFileStore.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/storage/AtomicFileStore.kt.tpl",
+      "template_sha256": "6e9bed89e1550380794bebd0281909db7c6e08e38dc561a2ec158fda76f40f37",
+      "rendered_sha256": "cf1676a5e739b34c5fada6cd70616ad545e9762100fd439799d46899be4c8953"
+    },
+    "base/src/main/java/com/ai/playtv/base/storage/UriAccess.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/storage/UriAccess.kt.tpl",
+      "template_sha256": "210fefba6b4e7609573373717357b1c23d1f854f6f3121b8dabb70b2588d3802",
+      "rendered_sha256": "74049ffe3ddce8b33c3e97823e96cd8b2bf6fce1999c82b24893c4e28cfd90dc"
+    },
+    "base/src/main/java/com/ai/playtv/base/ui/BaseActivity.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/ui/BaseActivity.kt.tpl",
+      "template_sha256": "d49e096bc8d652a1a861abc11ea6e01237a9bfa34bb957a94fec029dff99c5b2",
+      "rendered_sha256": "f4944d0d635782cceb29f730d95fdf7379fe9aee457fa3e7b622b60441bfbe01"
+    },
+    "base/src/main/java/com/ai/playtv/base/ui/BaseFragment.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/ui/BaseFragment.kt.tpl",
+      "template_sha256": "1d76bd6c91759f6de753ec4ee3a74b91ddc643fe335cec854d3f031c27d1b428",
+      "rendered_sha256": "6501ccdddf307cabc98bdfa386871343d0c2ae7b15f1db139dc52f1c43f20de0"
+    },
+    "base/src/main/java/com/ai/playtv/base/ui/KeyboardController.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/ui/KeyboardController.kt.tpl",
+      "template_sha256": "c09292ed0b9ee9ad61266b551d8d7793421868799643ffd1091d1bd4c933bbb3",
+      "rendered_sha256": "9b721934c5b20e54809d251c936df545dfe00f85459e2fa4f86c2dff49e6b7ae"
+    },
+    "base/src/main/java/com/ai/playtv/base/ui/SystemBarInsets.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/ui/SystemBarInsets.kt.tpl",
+      "template_sha256": "09ffc53958632a59a1ffdbe7209571a2ba7afda2dd997be297398c2ebd9cc018",
+      "rendered_sha256": "292b98ad7fc0e31b30ba440be40a184924027c88507965b5f9040a131bd78a29"
+    },
+    "base/src/main/java/com/ai/playtv/base/util/Foundation.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/util/Foundation.kt.tpl",
+      "template_sha256": "1be417a3564f3818809572f45f95c00588c285b14d8536e49058b3ab2f839d92",
+      "rendered_sha256": "d9560a1566c1bd2513d992b75d01542f8a3ae1c5ab10a9889c58ae1e8c9b30c4"
+    },
+    "base/src/main/java/com/ai/playtv/base/util/ScreenUnits.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/util/ScreenUnits.kt.tpl",
+      "template_sha256": "e5c76e648b052cd9ba8d5823ab91d0e5c5852edf926013249c74880c1708cfa3",
+      "rendered_sha256": "cb18b563ef0267814fd878f05acd0dcf8e34408ff1eebf476f6549140a00574f"
+    },
+    "base/src/main/java/com/ai/playtv/base/util/TextViewExtensions.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/util/TextViewExtensions.kt.tpl",
+      "template_sha256": "f3423e48da4c1fb0957df0b06a02983abeae8c5f80aa4cf6497c257e696eb63a",
+      "rendered_sha256": "5e48e0380ed29f01b7c7b0ae7a5e87ab95d5e076d90647ccc10289c530c2595d"
+    },
+    "base/src/main/java/com/ai/playtv/base/util/TimeFormats.kt": {
+      "source": "skeleton/base/src/main/java/__BASE_PATH__/util/TimeFormats.kt.tpl",
+      "template_sha256": "a20f8fc18a41d188b5145a32da5db10dc16412cfaabe42b125b5ea60969c50a1",
+      "rendered_sha256": "53103a8534a5b21553b5e746e0cef50025788644aa9cfef137afbba74e9ff3d1"
+    },
+    "base/src/main/res/values/colors.xml": {
+      "source": "skeleton/base/src/main/res/values/colors.xml.tpl",
+      "template_sha256": "828e5bd3bf1b236d59640a0a9c999aec3ccda2fe1b61c824dcb8790962c74dc5",
+      "rendered_sha256": "828e5bd3bf1b236d59640a0a9c999aec3ccda2fe1b61c824dcb8790962c74dc5"
+    },
+    "base/src/main/res/values/foundation_ids.xml": {
+      "source": "skeleton/base/src/main/res/values/foundation_ids.xml.tpl",
+      "template_sha256": "68ea3a754a0176af17b958751bea5735c38cba34eb042ab13aa7c6436b68fac6",
+      "rendered_sha256": "68ea3a754a0176af17b958751bea5735c38cba34eb042ab13aa7c6436b68fac6"
+    },
+    "base/src/main/res/values/styles.xml": {
+      "source": "skeleton/base/src/main/res/values/styles.xml.tpl",
+      "template_sha256": "bac9e8cadc0eb094f23b465a3e6fe1bc9dd6c839490bb1326a3bc693980b4de5",
+      "rendered_sha256": "bac9e8cadc0eb094f23b465a3e6fe1bc9dd6c839490bb1326a3bc693980b4de5"
+    },
+    "model/src/main/java/com/ai/playtv/model/contract/mvi/MviContract.kt": {
+      "source": "skeleton/model/src/main/java/__MODEL_PATH__/contract/mvi/MviContract.kt.tpl",
+      "template_sha256": "1e849a1df55baefe9469fbab66f01949eeab5dd685690468aeccef1b0994fa0d",
+      "rendered_sha256": "5f65019507301f9c6da7440f34d02bed4d559a3f6a81efa3ff6dc3aed37aff67"
+    },
+    "model/src/main/java/com/ai/playtv/model/state/common/PageStatus.kt": {
+      "source": "skeleton/model/src/main/java/__MODEL_PATH__/state/common/PageStatus.kt.tpl",
+      "template_sha256": "013697fb65a72dcb77768240c52066dbfca8203800dbcdfffb4963d188a8e74c",
+      "rendered_sha256": "e09cf52dcfe96e14a2873088b838f5481250beb80fcadb1eb2db49d39a0823e2"
+    },
+    "support/build.gradle.kts": {
+      "source": "skeleton/support/build.gradle.kts.tpl",
+      "template_sha256": "11f8e4f1f85618e4a6ac3bc58a2423e542c1c7bc58562302d88dcb21b69d1db5",
+      "rendered_sha256": "6402f16e52e3e60b020304e100772935a230046eca29fdd57ee77823cd1e9904"
+    },
+    "support/consumer-rules.pro": {
+      "source": "skeleton/support/consumer-rules.pro.tpl",
+      "template_sha256": "5b00cdd5ab483343b66acbd5d9f34af65fb4b6473d44d6ad851ca048c899d12b",
+      "rendered_sha256": "5b00cdd5ab483343b66acbd5d9f34af65fb4b6473d44d6ad851ca048c899d12b"
+    },
+    "support/src/main/AndroidManifest.xml": {
+      "source": "skeleton/support/src/main/AndroidManifest.xml.tpl",
+      "template_sha256": "daa0fb1f32ba7ea85a07ef6302ab3d58c3407d7fd2aa03ec132cb9e38e8d9849",
+      "rendered_sha256": "daa0fb1f32ba7ea85a07ef6302ab3d58c3407d7fd2aa03ec132cb9e38e8d9849"
+    }
+  }
+}

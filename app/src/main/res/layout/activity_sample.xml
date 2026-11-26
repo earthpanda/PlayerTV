@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Technical preview, not a product design or an MCP asset substitution. -->
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16pt">
+
+    <TextView android:id="@+id/title"
+        android:layout_width="0dp" android:layout_height="wrap_content"
+        android:text="@string/s_sample_title" android:textAppearance="@style/TextAppearance.Template.Title"
+        app:layout_constraintTop_toTopOf="parent" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <TextView android:id="@+id/description"
+        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginTop="12pt"
+        android:text="@string/s_sample_description"
+        app:layout_constraintTop_toBottomOf="@id/title" app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+    <TextView android:id="@+id/refreshAction" style="@style/Widget.Template.TextAction"
+        android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/s_sample_refresh"
+        app:layout_constraintTop_toBottomOf="@id/description" app:layout_constraintStart_toStartOf="parent" />
+    <TextView android:id="@+id/loadMoreAction" style="@style/Widget.Template.TextAction"
+        android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/s_sample_load_more"
+        app:layout_constraintTop_toTopOf="@id/refreshAction" app:layout_constraintEnd_toEndOf="parent" />
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/list"
+        android:layout_width="0dp" android:layout_height="0dp"
+        android:clipToPadding="false"
+        app:layout_constraintTop_toBottomOf="@id/refreshAction" app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent" />
+    <com.ai.playtv.view.state.PageStateLayout android:id="@+id/pageState"
+        android:layout_width="0dp" android:layout_height="0dp" android:background="@color/template_background"
+        app:layout_constraintTop_toTopOf="@id/list" app:layout_constraintBottom_toBottomOf="@id/list"
+        app:layout_constraintStart_toStartOf="@id/list" app:layout_constraintEnd_toEndOf="@id/list" />
+</androidx.constraintlayout.widget.ConstraintLayout>

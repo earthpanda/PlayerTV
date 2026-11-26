@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="s_app_name">"PlayTV"</string>
+    <string name="s_sample_title">模板示例</string>
+    <string name="s_sample_description">本地示例数据：3 页，每页 10 项。</string>
+    <string name="s_sample_refresh">刷新</string>
+    <string name="s_sample_load_more">加载下一页</string>
+    <string name="s_sample_item_title">示例条目 %1$d</string>
+    <string name="s_sample_selected">已选择条目 %1$d</string>
+    <string name="s_sample_refresh_failed">刷新失败，已保留原内容，请重新刷新</string>
+    <string name="s_sample_load_more_failed">加载下一页失败，已保留原内容，请重试</string>
+    <string name="s_common_loading">正在加载</string>
+    <string name="s_common_empty">暂无内容</string>
+    <string name="s_common_load_failed">加载失败，请重试</string>
+    <string name="s_common_retry">重试</string>
+</resources>

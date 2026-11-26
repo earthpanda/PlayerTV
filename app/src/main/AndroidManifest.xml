@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- TV devices need not have a touchscreen. The launcher below is only
+         a technical preview; TV artwork and the actual UI are pending. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <application
+        android:name=".AppApplication"
+        android:allowBackup="false"
+        android:label="@string/s_app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Template">
+        <!-- Technical preview only; replace the launcher when implementing the first real feature. -->
+        <activity android:name=".ui.test.sample.SampleActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

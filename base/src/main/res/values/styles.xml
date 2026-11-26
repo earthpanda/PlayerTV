@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Widget.Template.TextView" parent="@android:style/Widget.TextView">
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:textAppearance">@style/TextAppearance.Template.Body</item>
+    </style>
+    <style name="TextAppearance.Template.Body" parent="@android:style/TextAppearance.Material.Body1">
+        <item name="android:textSize">16pt</item>
+        <item name="android:textColor">@color/template_foreground</item>
+    </style>
+    <style name="TextAppearance.Template.Title" parent="TextAppearance.Template.Body">
+        <item name="android:textSize">20pt</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Widget.Template.TextAction" parent="Widget.Template.TextView">
+        <item name="android:minHeight">48pt</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">16pt</item>
+        <item name="android:paddingRight">16pt</item>
+        <item name="android:textColor">@color/template_accent</item>
+        <item name="android:background">?attr/selectableItemBackground</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+</resources>
