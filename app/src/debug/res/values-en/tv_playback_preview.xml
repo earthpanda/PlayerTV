@@ -8,6 +8,7 @@
     <string name="s_tv_preview_idle">Ready to play</string>
     <string name="s_tv_preview_preparing">Preparing</string>
     <string name="s_tv_preview_playing">Playing</string>
+    <string name="s_tv_preview_audio_without_video">No video source</string>
     <string name="s_tv_preview_paused">Paused</string>
     <string name="s_tv_preview_buffering">Buffering</string>
     <string name="s_tv_preview_ended">Playback ended</string>

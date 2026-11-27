@@ -173,6 +173,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             if (binding.playlistOverlay.visibility != View.VISIBLE) showControls()
         }
         binding.buffering.visibility = if (state.phase == "BUFFERING") View.VISIBLE else View.GONE
+        binding.audioWithoutVideo.visibility = if (state.audioWithoutVideo && !state.sourceResolving && state.error == null)
+            View.VISIBLE else View.GONE
         binding.buffering.text = getString(R.string.s_tv_preview_buffer_percent, state.bufferedPercent.coerceIn(0, 100))
         val status = getString(when (state.phase) {
             "INITIALIZING" -> R.string.s_tv_preview_initializing

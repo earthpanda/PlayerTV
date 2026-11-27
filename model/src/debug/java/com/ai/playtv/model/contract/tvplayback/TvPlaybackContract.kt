@@ -11,6 +11,7 @@ data class TvPlaybackState(
     val error: String? = null, val activeId: String? = null, val activeName: String? = null,
     val imported: List<ImportedSource> = emptyList(), val importPartial: Boolean = false,
     val sourceResolving: Boolean = false,
+    val audioWithoutVideo: Boolean = false,
     val discoveryRunning: Boolean = false, val discoveryFailed: Boolean = false,
     val discoveryRateLimited: Boolean = false, val historyFailed: Boolean = false,
 ) : UiState

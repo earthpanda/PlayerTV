@@ -90,7 +90,9 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     }
                     setState { copy(phase = snapshot.phase.name, positionMs = snapshot.positionMs,
                         durationMs = snapshot.durationMs, seekable = snapshot.seekable, bufferedPercent = snapshot.bufferedPercent,
-                        error = snapshot.failure?.code?.name) }
+                        error = snapshot.failure?.code?.name,
+                        audioWithoutVideo = snapshot.phase in setOf(PlaybackPhase.PLAYING, PlaybackPhase.PAUSED, PlaybackPhase.BUFFERING) &&
+                            snapshot.failure == null && snapshot.mediaInfo?.let { it.audioStreamCount > 0 && it.videoStreamCount == 0 } == true) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -147,7 +149,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     private fun selectImported(source: ImportedSource) {
         selectionJob?.cancel()
         requestedSource = source
-        setState { copy(sourceResolving = true, error = null) }
+        setState { copy(sourceResolving = true, error = null, audioWithoutVideo = false) }
         selectionJob = viewModelScope.launch {
             try {
                 val url = repository.playbackUrl(source.url)
@@ -157,7 +159,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     importedSource = source
                     sourceGeneration = activePlayer.state.value.generation
                     setState { copy(activeId = source.id, activeName = source.name, phase = "PREPARING", positionMs = 0, sourceResolving = false,
-                        durationMs = null, seekable = false, bufferedPercent = 0, error = null) }
+                        durationMs = null, seekable = false, bufferedPercent = 0, error = null, audioWithoutVideo = false) }
                 } else setState { copy(sourceResolving = false) }
                 report(result)
             } catch (cancelled: CancellationException) { throw cancelled }
