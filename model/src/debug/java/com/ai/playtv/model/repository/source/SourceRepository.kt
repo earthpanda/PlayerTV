@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.IOException
 import java.net.URI
@@ -50,76 +51,158 @@ class SourceRepository(private val service: GithubSourceService) {
     /** Resolve redirects again at selection time so temporary signed targets are not saved. */
     suspend fun playbackUrl(url: String): String = fetch(SourceRules.checkedUrl(url).toString(), false).finalUrl
 
+    /** Ordered discovery: raw README, repository API, then the rendered README article. */
     private suspend fun repository(owner: String, repo: String, onUpdate: suspend (SourceDiscovery) -> Unit): SourceDiscovery {
         require(owner.matches(Regex("[A-Za-z0-9_.-]+")) && repo.matches(Regex("[A-Za-z0-9_.-]+")))
-        val branch = service.repository(owner, repo).defaultBranch?.takeIf { it.isNotBlank() } ?: throw IOException("Missing default branch")
-        val tree = service.tree(owner, repo, branch)
-        val entries = tree.tree ?: throw IOException("Missing repository tree")
-        val files = entries.filter { it.type == "blob" && it.path != null }
-        fun raw(path: String): String {
-            val b = "https://raw.githubusercontent.com/".toHttpUrl().newBuilder().addPathSegment(owner).addPathSegment(repo).addPathSegment(branch)
-            path.split('/').forEach { b.addPathSegment(it) }
-            return b.build().toString()
-        }
-        fun isList(path: String): Boolean = listOf(".m3u", ".m3u8", ".mpd", ".txt").any { path.substringBefore('?').endsWith(it, true) }
-        fun isTs(path: String) = path.endsWith(".ts", true)
-        val mediaFiles = files.filter { SourceRules.candidate(it.path!!) && !isList(it.path!!) && !isTs(it.path!!) }
-        val results = mediaFiles.take(maxItems).map { item(raw(it.path!!), SourceKind.UNKNOWN) }.toMutableList()
-        val lists = files.filter { isList(it.path!!) }.map { raw(it.path!!) }.toMutableList()
-        val transportFiles = files.filter { isTs(it.path!!) }.map { raw(it.path!!) }.toMutableList()
-        val markdown = files.filter { SourceRules.isMarkdown(it.path!!) }
-        var partial = tree.truncated != false || results.size >= maxItems || markdown.size > maxMarkdown
+        val rawRoot = "https://raw.githubusercontent.com/".toHttpUrl().newBuilder()
+            .addPathSegment(owner).addPathSegment(repo).build().toString().trimEnd('/') + "/"
+        var branch: String? = null
+        val results = mutableListOf<ImportedSource>()
         val references = mutableSetOf<ReferenceKind>()
+        val scannedDocuments = mutableListOf<String>()
+        val scannedLists = mutableListOf<String>()
+        val scannedTransport = mutableListOf<String>()
+        var partial = false
+        var rateLimited = false
+        var apiFailure: Exception? = null
+
+        fun raw(ref: String, path: String): String {
+            val builder = "https://raw.githubusercontent.com/".toHttpUrl().newBuilder()
+                .addPathSegment(owner).addPathSegment(repo).addPathSegment(ref)
+            path.split('/').forEach { builder.addPathSegment(it) }
+            return builder.build().toString()
+        }
+        // HEAD and the API-reported default branch refer to the same repository snapshot.
+        fun canonical(url: String): String {
+            val prefixes = listOfNotNull("HEAD", branch).map { raw(it, "") }
+            val prefix = prefixes.firstOrNull { url.startsWith(it) } ?: return url
+            return rawRoot + "<default>/" + url.removePrefix(prefix)
+        }
+        fun seen(url: String, existing: List<String>): Boolean = existing.any { canonical(it) == canonical(url) }
+        fun isList(path: String): Boolean = listOf(".m3u", ".m3u8", ".mpd", ".txt").any { path.endsWith(it, true) }
+        fun isTs(path: String): Boolean = path.endsWith(".ts", true)
+        fun add(source: ImportedSource): Boolean {
+            if (results.any { canonical(it.url) == canonical(source.url) }) return false
+            if (results.size >= maxItems) { partial = true; return false }
+            results.add(source)
+            return true
+        }
         suspend fun publish() {
-            val unique = results.distinctBy { it.id }
-            onUpdate(bounded(SourceOrigin.GITHUB_REPOSITORY, unique, partial || unique.size > maxItems, references.toSet()))
+            onUpdate(bounded(SourceOrigin.GITHUB_REPOSITORY, results, partial, references.toSet(), rateLimited))
         }
-        if (results.isNotEmpty()) publish()
-        for (entry in markdown.take(maxMarkdown)) {
-            coroutineContext.ensureActive()
-            try {
-                val fetched = fetch(raw(entry.path!!), true)
-                partial = partial || fetched.truncated
-                fetched.text?.let { text ->
-                    references.addAll(SourceRules.referenceKinds(text))
-                    SourceRules.markdownLinks(text, URI(fetched.finalUrl)).forEach { link ->
-                        val path = URI(link).path.orEmpty()
-                        when {
-                            isList(path) -> lists.add(link)
-                            isTs(path) -> transportFiles.add(link)
-                            else -> results.add(item(link, SourceKind.UNKNOWN))
-                        }
-                    }
+        suspend fun processLinks(links: List<String>) {
+            val lists = mutableListOf<String>()
+            val transport = mutableListOf<String>()
+            var added = false
+            for (link in links) {
+                val path = URI(link).path.orEmpty()
+                when {
+                    isList(path) -> lists.add(link)
+                    isTs(path) -> transport.add(link)
+                    else -> if (add(item(link, SourceKind.UNKNOWN))) added = true
                 }
-            } catch (e: IOException) { partial = true }
-            publish()
+            }
+            if (added) publish()
+            for (url in transport) {
+                coroutineContext.ensureActive()
+                if (results.size >= maxItems) { partial = true; break }
+                if (seen(url, scannedTransport)) continue
+                if (scannedTransport.size >= 8) { partial = true; break }
+                scannedTransport.add(url)
+                try {
+                    val probe = withTimeoutOrNull(5_000L) { fetch(url, true, probeTransport = true) }
+                    if (probe == null) partial = true
+                    else if (probe.isTransportStream && add(item(url, SourceKind.MEDIA))) publish()
+                } catch (e: IOException) { partial = true }
+            }
+            for (url in lists) {
+                coroutineContext.ensureActive()
+                if (results.size >= maxItems) { partial = true; break }
+                if (seen(url, scannedLists)) continue
+                if (scannedLists.size >= 8) { partial = true; break }
+                scannedLists.add(url)
+                try {
+                    val found = withTimeoutOrNull(5_000L) { discover(url) }
+                    if (found == null) { partial = true; continue }
+                    var changed = false
+                    found.items.forEach { if (add(it)) changed = true }
+                    partial = partial || found.partial
+                    references.addAll(found.references)
+                    if (changed) publish()
+                } catch (e: IOException) { partial = true }
+                catch (e: retrofit2.HttpException) { partial = true; rateLimited = rateLimited || e.isGithubRateLimited() }
+            }
         }
-        val uniqueTransport = transportFiles.distinct()
-        if (uniqueTransport.size > 8) partial = true
-        for (url in uniqueTransport.take(8)) {
-            coroutineContext.ensureActive()
-            if (results.size >= maxItems) { partial = true; break }
-            try {
-                if (fetch(url, true, probeTransport = true).isTransportStream) results.add(item(url, SourceKind.MEDIA))
-            } catch (e: IOException) { partial = true }
-            publish()
+        suspend fun scanMarkdown(url: String) {
+            if (seen(url, scannedDocuments)) return
+            val fetched = fetch(url, true)
+            scannedDocuments.add(url)
+            partial = partial || fetched.truncated
+            fetched.text?.let { text ->
+                references.addAll(SourceRules.referenceKinds(text))
+                processLinks(SourceRules.markdownLinks(text, URI(fetched.finalUrl)))
+            }
         }
-        val uniqueLists = lists.distinct()
-        if (uniqueLists.size > 8) partial = true
-        for (listUrl in uniqueLists.take(8)) {
-            coroutineContext.ensureActive()
-            if (results.size >= maxItems) { partial = true; break }
-            try {
-                val found = discover(listUrl)
-                results.addAll(found.items)
-                partial = partial || found.partial
-                references.addAll(found.references)
-            } catch (e: IOException) { partial = true }
-            catch (e: retrofit2.HttpException) { partial = true }
-            publish()
+
+        val readmeFinished = withTimeoutOrNull(15_000L) {
+            try { scanMarkdown(raw("HEAD", "README.md")) }
+            catch (e: SourceHttpFailure) { if (e.statusCode != 404) partial = true }
+            catch (e: IOException) { partial = true }
+            true
         }
-        val unique = results.distinctBy { it.id }
-        return bounded(SourceOrigin.GITHUB_REPOSITORY, unique, partial || unique.size > maxItems, references).also { onUpdate(it) }
+        if (readmeFinished == null) partial = true
+
+        if (results.size < maxItems) {
+            val apiFinished = withTimeoutOrNull(30_000L) {
+                try {
+                    val defaultBranch = service.repository(owner, repo).defaultBranch?.takeIf { it.isNotBlank() }
+                        ?: throw IOException("Missing default branch")
+                    branch = defaultBranch
+                    val tree = service.tree(owner, repo, defaultBranch)
+                    val files = (tree.tree ?: throw IOException("Missing repository tree"))
+                        .filter { it.type == "blob" && it.path != null }
+                    partial = partial || tree.truncated != false
+                    val media = files.filter { SourceRules.candidate(it.path!!) && !isList(it.path!!) && !isTs(it.path!!) }
+                    processLinks(media.map { raw(defaultBranch, it.path!!) })
+                    val markdown = files.filter { SourceRules.isMarkdown(it.path!!) }
+                    if (markdown.size > maxMarkdown) partial = true
+                    for (entry in markdown.take(maxMarkdown)) {
+                        coroutineContext.ensureActive()
+                        if (results.size >= maxItems) { partial = true; break }
+                        try { scanMarkdown(raw(defaultBranch, entry.path!!)) }
+                        catch (e: IOException) { partial = true }
+                        catch (e: retrofit2.HttpException) { partial = true; rateLimited = rateLimited || e.isGithubRateLimited() }
+                    }
+                    val remaining = files.filter { isList(it.path!!) || isTs(it.path!!) }
+                        .map { raw(defaultBranch, it.path!!) }
+                    processLinks(remaining)
+                } catch (e: IOException) {
+                    apiFailure = e; partial = true
+                } catch (e: retrofit2.HttpException) {
+                    apiFailure = e; partial = true; rateLimited = e.isGithubRateLimited()
+                } catch (e: com.google.gson.JsonParseException) {
+                    apiFailure = e; partial = true
+                }
+                true
+            }
+            if (apiFinished == null) partial = true
+        } else partial = true
+        if (results.isNotEmpty()) publish()
+
+        if (results.size < maxItems) {
+            val htmlFinished = withTimeoutOrNull(15_000L) {
+                try {
+                    val page = fetch("https://github.com/$owner/$repo", true)
+                    partial = partial || page.truncated
+                    page.text?.let { html -> processLinks(SourceRules.githubReadmeHtmlLinks(html, URI(page.finalUrl))) }
+                } catch (e: IOException) { partial = true }
+                catch (e: retrofit2.HttpException) { partial = true }
+                true
+            }
+            if (htmlFinished == null) partial = true
+        }
+        if (results.isEmpty() && apiFailure != null) throw apiFailure!!
+        return bounded(SourceOrigin.GITHUB_REPOSITORY, results, partial, references.toSet(), rateLimited).also { onUpdate(it) }
     }
 
     private suspend fun normalizeGithubFile(uri: URI): String {
@@ -198,7 +281,8 @@ class SourceRepository(private val service: GithubSourceService) {
         val uri = SourceRules.checkedUrl(url)
         return ImportedSource(url, uri.path.substringAfterLast('/').ifEmpty { uri.host }, url, kind)
     }
-    private fun bounded(origin: SourceOrigin, items: List<ImportedSource>, incomplete: Boolean, references: Set<ReferenceKind>): SourceDiscovery {
+    private fun bounded(origin: SourceOrigin, items: List<ImportedSource>, incomplete: Boolean, references: Set<ReferenceKind>,
+        rateLimited: Boolean = false): SourceDiscovery {
         val kept = mutableListOf<ImportedSource>()
         var size = 0
         for (item in items) {
@@ -207,6 +291,6 @@ class SourceRepository(private val service: GithubSourceService) {
             kept.add(item.copy(name = item.name.take(256)))
             size += next
         }
-        return SourceDiscovery(origin, kept, incomplete || kept.size < items.size, references)
+        return SourceDiscovery(origin, kept, incomplete || kept.size < items.size, references, rateLimited)
     }
 }

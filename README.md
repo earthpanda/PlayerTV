@@ -4,6 +4,8 @@
 
 播放器来自相邻 `PlaybackSDK-playtv` 工程及其 `build/repository` 本地 Maven 仓库。Windows debug 打包使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`，离线可加 `-Offline`；该入口先以唯一版本发布当前 SDK，再以 `-DTest=true` 构建 PlayTV，并检查 APK 内各架构的库与发布产物一致。直接 Gradle 打包和 Android Studio 默认 Run 会提示使用该入口；使用入口生成的 APK 安装运行。构建与设备验证状态见 [依赖目录](docs/rule/build-dependency-catalog.md) 和 [播放验证 Spec](docs/feature/test-tv-playback.md)。
 
+debug 与 release 配置使用同一套项目签名：默认从当前用户目录的 `.android/playtv-signing/` 读取 `playtv.p12` 和 `signing.properties`，也可使用环境变量 `PLAYTV_SIGNING_DIR` 指向这两个文件所在的目录。属性文件包含 `storePassword`、`keyPassword`、`keyAlias`，私钥及密码不放入仓库；更换机器时应安全备份并迁移原文件，不要重新生成密钥，否则旧应用无法直接升级。新增签名证书的 SHA-256 为 `20776ca326f6f330ee2197bec5dad235132a2d38ae4a954186f8bd6c2db4e989`。此前 debug 包使用 Android 默认调试证书，与新证书不同。发布包入口为 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1 -Release`，也可加 `-Offline`；与 debug 一样先发布当前 SDK 并核对双架构库。本机已用新密钥签署已有 debug APK 的副本并通过 `apksigner verify`；签名配置和 release 入口尚待构建及两个新 APK 的证书验证。
+
 由本地 `android-xml-mvi` 模板 **0.4.0** 生成。实际配置、文件来源和摘要见 [.template-lock.json](.template-lock.json)。AI 先读 [AGENTS.md](AGENTS.md)。
 
 开发准则由本项目独立维护，入口为 [项目基线](docs/rule/project-context.md)。原型用于首次形成准则；后续开发读取本项目自己的规则，按本项目技术和业务决策演进，不自动跟随原型更新。
@@ -19,15 +21,15 @@
 - 构建声明：AGP/Kotlin 等实际值见版本目录，Gradle 8.13，JDK 17，SDK 35/35/26。
 - Gradle 分发来源：aliyun，下载地址 `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.13-all.zip`；Wrapper 保留 SHA-256 校验。Maven 仓库及顺序见依赖目录，厂商仓库按所选能力配置。
 
-工程包含完整四模块脚本、版本目录、Gradle Wrapper、MVI 基类、页面状态、AndroidX 列表和本地样例。启动页是 `ui.test.sample.SampleActivity`，对应 [技术样例 Spec](docs/feature/sample/test-sample.md)，不代表真实业务已完成。没有设计文件、后端地址、登录、数据库、品牌图标或生产签名配置；网络/图片 SDK 随所选能力生成。
+工程包含完整四模块脚本、版本目录、Gradle Wrapper、MVI 基类、页面状态、AndroidX 列表和本地样例。启动页是 `ui.test.sample.SampleActivity`，对应 [技术样例 Spec](docs/feature/sample/test-sample.md)，不代表真实业务已完成。没有设计文件、后端地址、登录、数据库或品牌图标；签名配置见上文，网络/图片 SDK 随所选能力生成。
 
 设计宽度允许留空：技术样例按系统 dp 基准适配，不代表设计宽度已确认。正式页面开发前，将 `design-config.properties` 的 `design.width` 填为设计画板的实际逻辑宽度（整数 100–2000）。修改后重新构建并重启生效，不重跑初始化器、不改 Kotlin；非法值在 Gradle 配置时报错。该文件随项目版本管理；`.template-lock.json` 的配置仅记录初始化历史。具体单位约定见 [项目约定](docs/rule/project-conventions.md)。
 
-用 Android Studio 打开本目录，配置本机 Android SDK 和 JDK 17。也可由用户明确授权后执行 `gradlew.bat :app:assembleDebug`（Windows）或 `./gradlew :app:assembleDebug`（Unix）。生成器没有执行这些命令；Gradle 分发包和 Maven 依赖首次使用仍需网络或已有缓存，本地模板不是完整离线依赖仓库。
+用 Android Studio 打开本目录，配置本机 Android SDK 和 JDK 17。经授权后通过上述打包入口构建；Gradle 分发包和 Maven 依赖首次使用仍需网络或已有缓存，本地模板不是完整离线依赖仓库。
 
 普通版本的样例用文字操作刷新和加载下一页；启用 refresh 时使用安全容器与经典刷新头/底部，数据均为固定的本地 3 页。样例不申请权限、不下载图片，也没有用生成资产替代正式设计。
 
-制作第一个正式功能前，根据真实需求确认设计与数据协议，创建正式 Spec 并设置真实启动页。发布前提供用户的品牌资源、签名与所选能力配置。模板没有代替这些业务决策。
+制作第一个正式功能前，根据真实需求确认设计与数据协议，创建正式 Spec 并设置真实启动页。发布前确认品牌资源、签名备份与所选能力配置。模板没有代替这些业务决策。
 
 后续开发规则已随工程交付：[业务与异步状态](docs/rule/business-development-rules.md)、[Manager 与作用域](docs/rule/manager-lifecycle-rules.md)、[文件/KV/数据库](docs/rule/file-storage-rules.md)、[权限](docs/rule/permission-rules.md)、[UI 生命周期](docs/rule/android-ui-lifecycle-rules.md)、[工具与扩展](docs/rule/common-capability-rules.md)。AGENTS 按任务触发阅读，Spec 记录本功能的具体选择；无需访问来源工程。这些文档规定写法，真实可用 API 以组件目录、能力说明和源码为准。
 

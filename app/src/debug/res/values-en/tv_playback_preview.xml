@@ -16,7 +16,8 @@
     <string name="s_tv_preview_released">Playback stopped</string>
     <string name="s_tv_preview_status_unknown">Unknown status</string>
     <string name="s_tv_preview_status_with_error">%1$s · An operation or playback failed</string>
-    <string name="s_tv_preview_title">Now playing: Bunny</string>
+    <string name="s_tv_preview_title">Playback</string>
+    <string name="s_tv_preview_no_source">No source selected</string>
     <string name="s_tv_preview_zero_time">00:00</string>
     <string name="s_tv_preview_unknown_time">--:--</string>
     <string name="s_tv_preview_controls_hint">Swipe left or right to seek; swipe up or press down for the list</string>
@@ -27,21 +28,6 @@
     <string name="s_tv_preview_selected_label">Selected</string>
     <string name="s_tv_preview_available_label">Not selected</string>
     <string name="s_tv_preview_crashing_sample">Sample crashes; fix pending</string>
-    <string name="s_tv_preview_source_bunny">Bunny (MP4)</string>
-    <string name="s_tv_preview_source_oceans">Oceans (MP4)</string>
-    <string name="s_tv_preview_source_flower">Flower (MP4)</string>
-    <string name="s_tv_preview_source_sintel">Sintel (MP4)</string>
-    <string name="s_tv_preview_source_github_bunny">GitHub · Big Buck Bunny (MP4)</string>
-    <string name="s_tv_preview_source_github_echo">GitHub · Echo Here We Are (MP4)</string>
-    <string name="s_tv_preview_source_github_flower">GitHub · Flower (MP4)</string>
-    <string name="s_tv_preview_source_github_webm">GitHub · Bunny (WebM, unverified)</string>
-    <string name="s_tv_preview_source_github_ogv">GitHub · Echo (Ogg, unverified)</string>
-    <string name="s_tv_preview_source_github_mkv">GitHub · Matroska test (MKV, unverified)</string>
-    <string name="s_tv_preview_source_hls">HLS test video (unverified)</string>
-    <string name="s_tv_preview_source_dash">DASH test video (unverified)</string>
-    <string name="s_tv_preview_source_cgtn">CGTN English live (unverified)</string>
-    <string name="s_tv_preview_source_cgtn_documentary">CGTN Documentary live (unverified)</string>
-    <string name="s_tv_preview_source_france24">France 24 English live (unverified)</string>
     <string name="s_tv_preview_now_playing">Now playing: %1$s</string>
     <string name="s_tv_preview_source_title">Source: %1$s</string>
     <string name="s_tv_preview_buffer_percent">Buffering %1$d%%</string>
@@ -51,42 +37,16 @@
     <string name="s_tv_import_empty">No playback candidates found</string>
     <string name="s_tv_import_partial">Partial results: over 100 items or unsupported addresses</string>
     <string name="s_tv_entry_title">Enter a source</string>
-    <string name="s_tv_preview_source_github_flv">GitHub · FLV guqin video</string>
-    <string name="s_tv_preview_source_avi">AVI · MPEG-4 video</string>
-    <string name="s_tv_preview_source_mov">MOV · H.264 video</string>
-    <string name="s_tv_preview_source_m4v">M4V · H.264 video</string>
-    <string name="s_tv_preview_source_ts">TS · MPEG-2 video</string>
-    <string name="s_tv_preview_source_mp3">GitHub · MP3 audio</string>
-    <string name="s_tv_preview_source_m4a">GitHub · M4A audio</string>
     <string name="s_tv_entry_start">Discover and play</string>
-    <string name="s_tv_entry_presets">Example sources</string>
+    <string name="s_tv_history_title">Source history</string>
+    <string name="s_tv_history_loading">Loading source history…</string>
+    <string name="s_tv_history_empty">No source history yet</string>
+    <string name="s_tv_history_failed">Could not read or save source history.</string>
     <string name="s_tv_import_partial_empty">No HTTPS candidates found; the list may contain unsupported addresses or be truncated</string>
     <string name="s_tv_import_cloud">Cloud share links found; share pages cannot be played directly</string>
     <string name="s_tv_import_website">Website links found; pages cannot be played directly</string>
-    <string name="s_tv_import_rate_limit">GitHub rejected or rate-limited the request; try again later</string>
+    <string name="s_tv_import_rate_limit">GitHub API rate limit reached. Please try again later.</string>
     <string name="s_tv_import_required">Enter a source URL</string>
-    <string-array name="tv_source_presets">
-        <item>Select an example (optional)</item>
-        <item>qist · TVBox sources repository</item>
-        <item>52liulian · TVApp sources repository</item>
-        <item>Guovin · IPTV live sources repository</item>
-        <item>iptv-org · IPTV live sources repository</item>
-        <item>HGTV · short drama repository</item>
-        <item>LibreTV · player project</item>
-        <item>VideoLingo · repository example</item>
-        <item>IPTV2025 · IPv4 playlist</item>
-        <item>IPTV2025 · IPv6 playlist</item>
-        <item>CCSH · lite playlist</item>
-        <item>CCSH · full playlist</item>
-        <item>CCSH · platform playlist</item>
-        <item>4K-IPTV · playlist (contains HTTP)</item>
-        <item>movie_resource · website directory</item>
-        <item>awesome-zhuiju · website directory</item>
-        <item>myquark · cloud shares</item>
-        <item>aliyunpanshare · share directory</item>
-        <item>WanXiang · movie list</item>
-        <item>WanXiang · movie factory (contains HTTP)</item>
-    </string-array>
     <string name="s_tv_import_discovering">Finding more sources…</string>
     <string name="s_tv_import_discovery_failed">Some sources could not be found. Available sources remain usable.</string>
     <string name="s_tv_http_forbidden">Server rejected the request (HTTP 403)</string>

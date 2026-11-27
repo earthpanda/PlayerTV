@@ -12,3 +12,8 @@ fun Throwable.sourceHttpStatus(): Int? = when (this) {
     is HttpException -> code()
     else -> null
 }
+
+/** Only classify a GitHub API rejection as quota exhaustion when its headers confirm it. */
+fun Throwable.isGithubRateLimited(): Boolean = this is HttpException && code() == 403 &&
+    response()?.raw()?.request?.url?.host.equals("api.github.com", ignoreCase = true) &&
+    response()?.headers()?.get("X-RateLimit-Remaining")?.trim() == "0"

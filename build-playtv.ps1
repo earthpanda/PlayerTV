@@ -1,4 +1,4 @@
-param([switch]$Offline)
+param([switch]$Offline, [switch]$Release)
 
 $ErrorActionPreference = 'Stop'
 $projectDir = $PSScriptRoot
@@ -91,12 +91,18 @@ function Invoke-CheckedGradle([string]$directory, [string[]]$arguments, [string]
 $offlineArgs = if ($Offline) { @('--offline') } else { @() }
 Write-Host "Publishing current PlaybackSDK as $version"
 Invoke-CheckedGradle $sdkDir (@(':android:publishReleasePublicationToLocalSdkRepository', '--no-daemon', "-PsdkPublicationVersion=$version") + $offlineArgs) 'sdk'
-Write-Host 'Building PlayTV with -DTest=true'
-Invoke-CheckedGradle $projectDir (@(':app:assembleDebug', '--no-daemon', '-DTest=true', '-PtestWebmCandidate=true', "-PplaybackSdkBuildVersion=$version") + $offlineArgs) 'app'
+if ($Release) {
+    Write-Host 'Building PlayTV release'
+    Invoke-CheckedGradle $projectDir (@(':app:assembleRelease', '--no-daemon', "-PplaybackSdkBuildVersion=$version") + $offlineArgs) 'app'
+    $apkPath = Join-Path $projectDir 'app\build\outputs\apk\release\app-release.apk'
+} else {
+    Write-Host 'Building PlayTV with -DTest=true'
+    Invoke-CheckedGradle $projectDir (@(':app:assembleDebug', '--no-daemon', '-DTest=true', '-PtestWebmCandidate=true', "-PplaybackSdkBuildVersion=$version") + $offlineArgs) 'app'
+    $apkPath = Join-Path $projectDir 'app\build\outputs\apk\debug\app-debug.apk'
+}
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $aarPath = Join-Path $sdkDir "build\repository\com\ai\media\playback-android\$version\playback-android-$version.aar"
-$apkPath = Join-Path $projectDir 'app\build\outputs\apk\debug\app-debug.apk'
 $aar = [IO.Compression.ZipFile]::OpenRead($aarPath)
 $apk = [IO.Compression.ZipFile]::OpenRead($apkPath)
 try {

@@ -16,7 +16,8 @@
     <string name="s_tv_preview_released">播放已结束</string>
     <string name="s_tv_preview_status_unknown">状态未知</string>
     <string name="s_tv_preview_status_with_error">%1$s · 操作或播放出错</string>
-    <string name="s_tv_preview_title">正在播放：Bunny</string>
+    <string name="s_tv_preview_title">播放</string>
+    <string name="s_tv_preview_no_source">未选择播放来源</string>
     <string name="s_tv_preview_zero_time">00:00</string>
     <string name="s_tv_preview_unknown_time">--:--</string>
     <string name="s_tv_preview_controls_hint">左右滑动快进/后退，上滑或按下键打开列表</string>
@@ -27,21 +28,6 @@
     <string name="s_tv_preview_selected_label">已选择</string>
     <string name="s_tv_preview_available_label">未选择</string>
     <string name="s_tv_preview_crashing_sample">该样本闪退，待修复</string>
-    <string name="s_tv_preview_source_bunny">Bunny（MP4）</string>
-    <string name="s_tv_preview_source_oceans">Oceans（MP4）</string>
-    <string name="s_tv_preview_source_flower">Flower（MP4）</string>
-    <string name="s_tv_preview_source_sintel">Sintel（MP4）</string>
-    <string name="s_tv_preview_source_github_bunny">GitHub · Big Buck Bunny（MP4）</string>
-    <string name="s_tv_preview_source_github_echo">GitHub · Echo Here We Are（MP4）</string>
-    <string name="s_tv_preview_source_github_flower">GitHub · Flower（MP4）</string>
-    <string name="s_tv_preview_source_github_webm">GitHub · Bunny（WebM，待验证）</string>
-    <string name="s_tv_preview_source_github_ogv">GitHub · Echo（Ogg，待验证）</string>
-    <string name="s_tv_preview_source_github_mkv">GitHub · Matroska 测试片（MKV，待验证）</string>
-    <string name="s_tv_preview_source_hls">HLS 测试视频（待验证）</string>
-    <string name="s_tv_preview_source_dash">DASH 测试视频（待验证）</string>
-    <string name="s_tv_preview_source_cgtn">CGTN 英语直播（待验证）</string>
-    <string name="s_tv_preview_source_cgtn_documentary">CGTN 纪录片直播（待验证）</string>
-    <string name="s_tv_preview_source_france24">France 24 英语直播（待验证）</string>
     <string name="s_tv_preview_now_playing">正在播放：%1$s</string>
     <string name="s_tv_preview_source_title">当前来源：%1$s</string>
     <string name="s_tv_preview_buffer_percent">缓冲 %1$d%%</string>
@@ -66,42 +52,16 @@
     <string name="s_tv_import_empty">未发现播放候选</string>
     <string name="s_tv_import_partial">仅显示部分候选，可能超过 100 项或包含未支持的地址</string>
     <string name="s_tv_entry_title">输入播放来源</string>
-    <string name="s_tv_preview_source_github_flv">GitHub · FLV 古琴视频</string>
-    <string name="s_tv_preview_source_avi">AVI · MPEG-4 视频</string>
-    <string name="s_tv_preview_source_mov">MOV · H.264 视频</string>
-    <string name="s_tv_preview_source_m4v">M4V · H.264 视频</string>
-    <string name="s_tv_preview_source_ts">TS · MPEG-2 视频</string>
-    <string name="s_tv_preview_source_mp3">GitHub · MP3 音频</string>
-    <string name="s_tv_preview_source_m4a">GitHub · M4A 音频</string>
     <string name="s_tv_entry_start">解析并播放</string>
-    <string name="s_tv_entry_presets">示例来源</string>
+    <string name="s_tv_history_title">历史播放源</string>
+    <string name="s_tv_history_loading">正在加载历史播放源…</string>
+    <string name="s_tv_history_empty">暂无历史播放源</string>
+    <string name="s_tv_history_failed">历史播放源读取或保存失败</string>
     <string name="s_tv_import_partial_empty">没有可用的 HTTPS 候选；列表可能包含未支持的地址或已截断</string>
     <string name="s_tv_import_cloud">发现网盘分享链接；当前不能直接播放分享页</string>
     <string name="s_tv_import_website">发现网站入口；当前不能直接播放网页</string>
-    <string name="s_tv_import_rate_limit">GitHub 拒绝请求或限制了访问，请稍后重试</string>
+    <string name="s_tv_import_rate_limit">GitHub 使用已达限流，请稍后重试</string>
     <string name="s_tv_import_required">请输入播放地址</string>
-    <string-array name="tv_source_presets">
-        <item>选择示例来源（可留空）</item>
-        <item>qist · TVBox 节目源仓库</item>
-        <item>52liulian · TVApp 节目源仓库</item>
-        <item>Guovin · IPTV 直播源仓库</item>
-        <item>iptv-org · IPTV 直播源仓库</item>
-        <item>HGTV · 红果 TV 仓库</item>
-        <item>LibreTV · 播放器项目</item>
-        <item>VideoLingo · 仓库示例</item>
-        <item>IPTV2025 · IPv4 列表</item>
-        <item>IPTV2025 · IPv6 列表</item>
-        <item>CCSH · 精简列表</item>
-        <item>CCSH · 完整列表</item>
-        <item>CCSH · 平台列表</item>
-        <item>4K-IPTV · 列表（含 HTTP）</item>
-        <item>movie_resource · 网站目录</item>
-        <item>awesome-zhuiju · 网站目录</item>
-        <item>myquark · 网盘分享</item>
-        <item>aliyunpanshare · 分享目录</item>
-        <item>万象 · 一万部电影</item>
-        <item>万象 · 电影工厂（含 HTTP）</item>
-    </string-array>
     <string name="s_tv_import_discovering">正在继续查找播放来源…</string>
     <string name="s_tv_import_discovery_failed">部分来源查找失败，已找到的来源仍可使用</string>
     <string name="s_tv_http_forbidden">服务器拒绝 HTTP 403</string>

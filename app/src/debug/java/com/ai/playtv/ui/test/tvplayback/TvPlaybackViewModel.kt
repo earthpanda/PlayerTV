@@ -13,13 +13,14 @@ import com.ai.playtv.domain.BaseMviViewModel
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
-import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.repository.source.SourceRepository
 import com.ai.playtv.model.repository.source.sourceHttpStatus
 import com.ai.playtv.di.NetworkDependencies
 import com.ai.playtv.di.SourceDiscoveryOwner
 import com.ai.playtv.model.manager.source.SourceDiscoverySession
+import com.ai.playtv.model.storage.source.SourceHistoryStore
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -30,10 +31,11 @@ import kotlinx.coroutines.launch
 class TvPlaybackViewModel(private val appContext: Context, private val repository: SourceRepository,
     private val network: NetworkDependencies, private val initialSources: List<ImportedSource>, partial: Boolean,
     private val discoveryOwner: SourceDiscoveryOwner? = null, private val sessionId: String? = null,
-    private val session: SourceDiscoverySession? = null) :
+    private val session: SourceDiscoverySession? = null, private val history: SourceHistoryStore? = null,
+    private val historyId: String? = null) :
     BaseMviViewModel<TvPlaybackState, TvPlaybackEvent, TvPlaybackEffect>(TvPlaybackState(
         imported = initialSources, importPartial = partial,
-        activeId = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.id ?: TvPreviewSource.BUNNY.name,
+        activeId = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.id,
         activeName = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.name,
     )) {
     companion object { const val KNOWN_CRASHING_WEBM = "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.webm" }
@@ -41,38 +43,15 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     private var surface: Surface? = null
     private var background = false
     private var lastPhase: PlaybackPhase? = null
-    private var currentSource = TvPreviewSource.BUNNY
     private var sourceGeneration = 0L
     private var importedSource: ImportedSource? = null
     private var requestedSource: ImportedSource? = null
     private var selectionJob: Job? = null
 
-    private fun sourceUrl(source: TvPreviewSource) = when (source) {
-        TvPreviewSource.BUNNY -> "https://media.w3.org/2010/05/bunny/trailer.mp4"
-        TvPreviewSource.OCEANS -> "https://vjs.zencdn.net/v/oceans.mp4"
-        TvPreviewSource.FLOWER -> "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
-        TvPreviewSource.SINTEL -> "https://media.w3.org/2010/05/sintel/trailer.mp4"
-        TvPreviewSource.GITHUB_BUNNY -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4"
-        TvPreviewSource.GITHUB_ECHO -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/echo-hereweare.mp4"
-        TvPreviewSource.GITHUB_FLOWER -> "https://raw.githubusercontent.com/mdn/interactive-examples/main/live-examples/media/cc0-videos/flower.mp4"
-        TvPreviewSource.GITHUB_WEBM -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.webm"
-        TvPreviewSource.GITHUB_OGV -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/echo-hereweare.ogv"
-        TvPreviewSource.GITHUB_MKV -> "https://raw.githubusercontent.com/matroska-org/matroska-test-files/master/test_files/test1.mkv"
-        TvPreviewSource.GITHUB_FLV -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/guqin.flv"
-        TvPreviewSource.SAMPLE_AVI -> "https://filesamples.com/samples/video/avi/sample_640x360.avi"
-        TvPreviewSource.SAMPLE_MOV -> "https://filesamples.com/samples/video/mov/sample_640x360.mov"
-        TvPreviewSource.SAMPLE_M4V -> "https://filesamples.com/samples/video/m4v/sample_640x360.m4v"
-        TvPreviewSource.SAMPLE_TS -> "https://filesamples.com/samples/video/ts/sample_640x360.ts"
-        TvPreviewSource.GITHUB_MP3 -> "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/AirReview-Landmarks-02-ChasingCorporate.mp3"
-        TvPreviewSource.GITHUB_M4A -> "https://raw.githubusercontent.com/rafaelreis-hotmart/Audio-Sample-files/master/sample.m4a"
-        TvPreviewSource.HLS -> "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
-        TvPreviewSource.DASH -> "https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd"
-        TvPreviewSource.CGTN -> "https://english-livebkali.cgtn.com/live/encgtn.m3u8"
-        TvPreviewSource.CGTN_DOCUMENTARY -> "https://hlspackager.akamaized.net/live/DB/CGTN_DOCUMENTARY/HLS/CGTN_DOCUMENTARY.m3u8"
-        TvPreviewSource.FRANCE24_EN -> "https://live.france24.com/hls/live/2037218/F24_EN_HI_HLS/master_900.m3u8"
-    }
-
     init {
+        if (history != null) viewModelScope.launch {
+            history.state.collect { snapshot -> setState { copy(historyFailed = snapshot.failed) } }
+        }
         if (session != null) viewModelScope.launch {
             var errorReported = false
             session.state.collect { snapshot ->
@@ -83,17 +62,25 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 setState { copy(imported = snapshot.result?.items ?: imported,
                     importPartial = snapshot.result?.partial == true,
                     discoveryRunning = snapshot.running,
-                    discoveryFailed = snapshot.error != null) }
+                    discoveryFailed = snapshot.error != null,
+                    discoveryRateLimited = snapshot.error == "RATE_LIMIT" || snapshot.result?.rateLimited == true) }
             }
         }
         viewModelScope.launch {
             try {
+                val restored = historyId?.let { id ->
+                    history?.find(id) ?: throw IOException("History unavailable")
+                }
+                val startSources = restored?.items ?: initialSources
+                val firstSource = startSources.firstOrNull {
+                    BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM
+                } ?: throw IOException("Source unavailable")
+                if (restored != null) setState { copy(imported = restored.items, importPartial = restored.partial,
+                    activeId = firstSource.id, activeName = firstSource.name) }
                 val created = AndroidPlayer.create(appContext)
                 player = created
                 surface?.let { report(created.setSurface(it)) }
-                if (initialSources.isEmpty() && sessionId == null) loadSource(created, currentSource)
-                else initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.let { selectImported(it) }
-                    ?: setState { copy(phase = "FAILED", error = "SOURCE_UNAVAILABLE") }
+                selectImported(firstSource)
                 created.state.collect { snapshot ->
                     if (snapshot.generation != sourceGeneration) return@collect
                     if (lastPhase != snapshot.phase) {
@@ -107,7 +94,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                Log.e("PlayTvPreview", "initialization failed", error)
+                Log.e("PlayTvPreview", "initialization failed: ${error.javaClass.simpleName}")
                 setState { copy(phase = "FAILED", error = "INITIALIZATION_FAILED") }
             }
         }
@@ -129,7 +116,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 PlaybackPhase.PLAYING, PlaybackPhase.BUFFERING, PlaybackPhase.PREPARING -> report(activePlayer.pause())
                 PlaybackPhase.PAUSED -> report(activePlayer.play())
                 PlaybackPhase.IDLE, PlaybackPhase.ENDED, PlaybackPhase.FAILED ->
-                    (requestedSource ?: importedSource)?.let { selectImported(it) } ?: loadSource(activePlayer, currentSource)
+                    (requestedSource ?: importedSource)?.let { selectImported(it) }
                 else -> Unit
             }
             is TvPlaybackEvent.Seek -> {
@@ -146,7 +133,6 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     report(activePlayer.seekTo(event.positionMs.coerceIn(0L, duration)))
                 }
             }
-            is TvPlaybackEvent.SelectSource -> { selectionJob?.cancel(); requestedSource = null; setState { copy(sourceResolving = false) }; loadSource(activePlayer, event.source) }
             is TvPlaybackEvent.SelectImported -> selectImported(event.source)
             TvPlaybackEvent.Background -> {
                 background = true
@@ -181,18 +167,6 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 if (error.sourceHttpStatus() == 403) setEffect(TvPlaybackEffect.ServerForbidden)
             }
         }
-    }
-    private fun loadSource(activePlayer: AndroidPlayer, source: TvPreviewSource) {
-        val result = activePlayer.loadHttps(sourceUrl(source), PlaybackOptions(playWhenReady = !background))
-        if (result is CommandResult.Accepted) {
-            currentSource = source
-            importedSource = null
-            sourceGeneration = activePlayer.state.value.generation
-            Log.i("PlayTvPreview", "source=$source generation=$sourceGeneration")
-            setState { copy(source = source, activeId = source.name, activeName = null, phase = "PREPARING", positionMs = 0, durationMs = null,
-                seekable = false, bufferedPercent = 0, error = null) }
-        }
-        report(result)
     }
     private fun report(result: CommandResult) {
         if (result is CommandResult.Rejected) {
