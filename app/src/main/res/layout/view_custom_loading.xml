@@ -7,7 +7,7 @@
         <ImageView android:id="@+id/loading_icon"
             android:layout_width="32pt" android:layout_height="32pt"
             android:contentDescription="@null" android:src="@drawable/page_loading_toast"
-            android:tint="@color/loading_label" />
+            android:tint="@color/loading_indicator" />
         <TextView android:id="@+id/loading_text"
             android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="8pt" android:gravity="center" android:includeFontPadding="false"

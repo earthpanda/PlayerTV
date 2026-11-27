@@ -36,8 +36,8 @@
 | ViewModel Factory | app/src/main/java/com/ai/playtv/di/ViewModelFactories.kt | 显式创建，没有业务单例或 DI SDK |
 | AppContainer / StartupStep | app/di/AppContainer、AppApplication；base/diagnostics/StartupStep；样例 Factory 实际使用 | 明确属性和初始化依赖，成功后发布，无 ViewModel 缓存；成功耗时需启用 INFO |
 | PageStateLayout | app/src/main/java/com/ai/playtv/view/state；样例页面使用 | model PageStatus 的 UI 渲染，不把状态定义放回 base |
-| CustomLoadingView | app/src/main/java/com/ai/playtv/view/loading；页面状态、来源历史和项目操作加载使用 | 卡片及可选文字、纯圆环、成功和短暂成功/失败；可见时循环旋转，隐藏或脱离窗口停止；短暂结果的延迟由视图管理；本次已构建安装，未功能验收 |
-| OperationLoadingController | base/src/main/java/com/ai/playtv/base/ui/loading；项目外观通过 app 的 `createOperationLoadingController` 注入；SourceEntryActivity 的解析操作 | Main 线程 render 操作 ID；宿主停止时隐藏、销毁时关闭；取消由回调交给 ViewModel；base 默认样式仍供未注入的调用使用，项目新页面应使用上述入口；本次已构建安装，未功能验收 |
+| CustomLoadingView | app/src/main/java/com/ai/playtv/view/loading；页面状态、来源历史和项目操作加载使用 | 半透明深色卡片、蓝色圆环及可选文字，也支持纯圆环、成功和短暂成功/失败；可见时循环旋转，隐藏或脱离窗口停止；最新外观未构建及功能验收 |
+| OperationLoadingController | base/src/main/java/com/ai/playtv/base/ui/loading；项目外观通过 app 的 `createOperationLoadingController` 注入；SourceEntryActivity 的解析操作 | Main 线程 render 操作 ID；宿主停止时隐藏、销毁时关闭；可取消操作通过返回键回调给 ViewModel，不显示取消按钮；base 默认样式仍供未注入的调用使用；最新外观未构建及功能验收 |
 | MessageController / ConfirmationController | base/src/main/java/com/ai/playtv/base/ui/message、dialog | MessageController 已用于 debug 来源入口与播放页的 HTTP 403 提示；ConfirmationController 暂无本项目业务调用，设备验收待完成 |
 | AndroidX ListAdapter | ui/test/sample/SampleAdapter.kt、item_sample.xml | 技术示例，正式列表按业务定义 Adapter，不复制数据模型或引入 MultiType |
 | DiagnosticLog | base/diagnostics；MVI、网络/图片失败和文件清理调用 | 默认 WARN/ERROR，结构化标量，不输出原始消息/URL/body，不上传 |

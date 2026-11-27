@@ -5,8 +5,6 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.view.LayoutInflater
 import android.view.WindowManager
-import android.widget.TextView
-import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentActivity
 import com.ai.playtv.R
 import com.ai.playtv.base.ui.loading.OperationLoadingController
@@ -25,11 +23,6 @@ class CustomOperationLoadingDialog(
         window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         content.findViewById<CustomLoadingView>(R.id.operation_loading_view).showLoading(message)
-        content.findViewById<TextView>(R.id.operation_loading_cancel).apply {
-            isVisible = cancellable
-            setOnClickListener { cancel() }
-            if (cancellable) requestFocus()
-        }
         setCancelable(cancellable)
         setCanceledOnTouchOutside(false)
         if (cancellable) setOnCancelListener { onCancel() }

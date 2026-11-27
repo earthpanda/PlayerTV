@@ -41,7 +41,7 @@ class CustomLoadingView @JvmOverloads constructor(context: Context, attrs: Attri
         transientResult = false
         spinning = true
         icon.setImageResource(R.drawable.page_loading_toast)
-        icon.imageTintList = ColorStateList.valueOf(context.getColor(R.color.loading_label))
+        icon.imageTintList = ColorStateList.valueOf(context.getColor(R.color.loading_indicator))
         setMessage(text)
         visibility = VISIBLE
         updateAnimation()
