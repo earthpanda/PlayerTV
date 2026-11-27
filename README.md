@@ -1,38 +1,56 @@
 # PlayTV
 
-独立 Android TV 播放器项目。工程现为模板技术预览，尚未实现 TV 播放页面或 GitHub/M3U/M3U8 播放；应用清单声明 TV 启动类别和触屏可选，电视桌面 banner、焦点交互及真实设备验证仍待完成。
+PlayTV 是 GenTV 仓库中的独立 Android TV 播放器工程，应用 ID 为 `com.ai.playtv`，最低支持 Android 8（API 26）。工程位于 `launcher/playtv/`，拥有独立的 Gradle Wrapper 和 `app`、`base`、`model`、`support` 模块，不会随 GenTV 桌面或手机应用自动打包。
 
-播放器来自相邻 `PlaybackSDK-playtv` 工程及其 `build/repository` 本地 Maven 仓库。Windows debug 打包使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`，离线可加 `-Offline`；该入口先以唯一版本发布当前 SDK，再以 `-DTest=true` 构建 PlayTV，并检查 APK 内各架构的库与发布产物一致。直接 Gradle 打包和 Android Studio 默认 Run 会提示使用该入口；使用入口生成的 APK 安装运行。构建与设备验证状态见 [依赖目录](docs/rule/build-dependency-catalog.md) 和 [播放验证 Spec](docs/feature/test-tv-playback.md)。
+当前 debug 包提供媒体来源输入与播放验证页面；GitHub、HTTPS 地址和播放列表等路径仍在逐步验证。已验证的设备、来源和未完成的回归见 [播放验证记录](docs/feature/test-tv-playback.md)，不能将测试页面视为完整发布版本。
 
-由本地 `android-xml-mvi` 模板 **0.4.0** 生成。实际配置、文件来源和摘要见 [.template-lock.json](.template-lock.json)。AI 先读 [AGENTS.md](AGENTS.md)。
+## 构建 PlayTV
 
-开发准则由本项目独立维护，入口为 [项目基线](docs/rule/project-context.md)。原型用于首次形成准则；后续开发读取本项目自己的规则，按本项目技术和业务决策演进，不自动跟随原型更新。
+用 Android Studio 打开 `launcher/playtv`，配置 JDK 17 和 Android SDK 35。工程使用 Gradle Wrapper；首次构建需要下载 Gradle 和相关依赖，或已有可用缓存。
 
-公共源码和使用契约见 [公共基础](docs/rule/common-foundation.md)，当前能力查 [组件目录](docs/rule/ui-component-catalog.md)，公共源码版本/摘要记录在 [.foundation-baseline.json](.foundation-baseline.json)。后续复用标准实现，地址、协议和业务策略由项目接入；没有新增完整网络功能页。
+在 Windows 的 `launcher/playtv` 目录执行：
 
-推荐流程是用户先用 Android Studio 创建默认工程，再由 AI 读取本地模板库、检查默认代码并接入。若本项目按该流程初始化，lock 的 `android_studio_adoption` 记录原工程信息、改动清单与 `.template-backups/<批次>/backup-manifest.json` 位置；原配置与默认源码保存在该目录。现有 `.git`、`.idea`、`local.properties` 保留，构建采用下述模板基线，不默认沿用 AS 自带版本。也支持向空目录生成，届时没有 AS 备份记录。
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1
+```
 
-- applicationId：`com.ai.playtv`
-- 模块 namespace：`com.ai.playtv`、`com.ai.playtv.base`、`com.ai.playtv.model`、`com.ai.playtv.support`
-- 设计宽度：以根目录 [design-config.properties](design-config.properties) 的 `design.width` 为准，普通页面使用 pt，XML 和代码共用适配入口。
-- 启用能力：`none`；工具库为 `com.blankj:utilcodex:1.31.1`。
-- 构建声明：AGP/Kotlin 等实际值见版本目录，Gradle 8.13，JDK 17，SDK 35/35/26。
-- Gradle 分发来源：aliyun，下载地址 `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.13-all.zip`；Wrapper 保留 SHA-256 校验。Maven 仓库及顺序见依赖目录，厂商仓库按所选能力配置。
+离线构建可加 `-Offline`。该入口构建 debug 包、启用 `-DTest=true`，并对照 APK 与 SDK AAR 中的 32 位和 64 位原生库。直接 Gradle 打包或 Android Studio 默认 Run 会提示使用该入口；安装时使用本次入口成功生成的 APK。Linux/macOS 的等效打包入口尚未提供。
 
-工程包含完整四模块脚本、版本目录、Gradle Wrapper、MVI 基类、页面状态、AndroidX 列表和本地样例。启动页是 `ui.test.sample.SampleActivity`，对应 [技术样例 Spec](docs/feature/sample/test-sample.md)，不代表真实业务已完成。没有设计文件、后端地址、登录、数据库、品牌图标或生产签名配置；网络/图片 SDK 随所选能力生成。
+## 播放 SDK
 
-设计宽度允许留空：技术样例按系统 dp 基准适配，不代表设计宽度已确认。正式页面开发前，将 `design-config.properties` 的 `design.width` 填为设计画板的实际逻辑宽度（整数 100–2000）。修改后重新构建并重启生效，不重跑初始化器、不改 Kotlin；非法值在 Gradle 配置时报错。该文件随项目版本管理；`.template-lock.json` 的配置仅记录初始化历史。具体单位约定见 [项目约定](docs/rule/project-conventions.md)。
+工程内的 `sdk-maven/` 保存了构建所需的 PlaybackSDK Maven 产物。没有本地 SDK 源码时，打包脚本直接使用这份产物。
 
-用 Android Studio 打开本目录，配置本机 Android SDK 和 JDK 17。也可由用户明确授权后执行 `gradlew.bat :app:assembleDebug`（Windows）或 `./gradlew :app:assembleDebug`（Unix）。生成器没有执行这些命令；Gradle 分发包和 Maven 依赖首次使用仍需网络或已有缓存，本地模板不是完整离线依赖仓库。
+如需修改 SDK，可将其仓库克隆到 GenTV 仓库的同级目录，目录名须为 `PlaybackSDK-playtv`：
 
-普通版本的样例用文字操作刷新和加载下一页；启用 refresh 时使用安全容器与经典刷新头/底部，数据均为固定的本地 3 页。样例不申请权限、不下载图片，也没有用生成资产替代正式设计。
+```powershell
+git clone --branch codex/playtv-network https://gitee.com/lin-dream/playback-sdk.git PlaybackSDK-playtv
+```
 
-制作第一个正式功能前，根据真实需求确认设计与数据协议，创建正式 Spec 并设置真实启动页。发布前提供用户的品牌资源、签名与所选能力配置。模板没有代替这些业务决策。
+打包时，脚本检查本地 SDK 源码（包括未提交和未跟踪文件）及其准备输入：没有变化时复用 PlayTV 内的产物；有变化时重新发布，并覆盖 PlayTV 内的 Maven 产物。SDK 检查或发布失败时会报错。更新后的产物需与 PlayTV 一起提交，其他人才能获取。
 
-后续开发规则已随工程交付：[业务与异步状态](docs/rule/business-development-rules.md)、[Manager 与作用域](docs/rule/manager-lifecycle-rules.md)、[文件/KV/数据库](docs/rule/file-storage-rules.md)、[权限](docs/rule/permission-rules.md)、[UI 生命周期](docs/rule/android-ui-lifecycle-rules.md)、[工具与扩展](docs/rule/common-capability-rules.md)。AGENTS 按任务触发阅读，Spec 记录本功能的具体选择；无需访问来源工程。这些文档规定写法，真实可用 API 以组件目录、能力说明和源码为准。
+重新构建 SDK 需要 Python、Android NDK r29、两个 ABI 的开发库及 SDK 工程的本机配置。具体环境以 SDK 仓库的 README 为准；在 SDK 目录可执行以下命令准备输入：
 
-后续选填功能从 [可选能力入口](docs/optional-capabilities.md) 查看，区分已注册可选包与按需参考；没有需求时保持未接入。
+```powershell
+python -X utf8 tools/prepare_upstream.py --sources
+python -X utf8 tools/prepare_upstream.py --android --abi arm64 --abi armv7
+```
 
-能力版本、仓库和验证状态见 [依赖目录](docs/rule/build-dependency-catalog.md)。未交付或未启用的功能以组件目录和实际源码为准，不能仅按参考项目 API 调用。模板更新不会自动覆盖生成项目；迁移时按公共基线核对本地差异，保留历史 lock。
+## 安装到设备
 
-接入中断时先按备份清单核对恢复，生成器不提供自动回滚或重复覆盖。备份目录已加入忽略规则，保留到用户确认不再需要；不要让后续 AI 自动删除它。
+成功构建的 APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。设备启用 ADB 并连接后，在 `launcher/playtv` 目录使用实际设备序列号安装：
+
+```powershell
+adb devices -l
+$deviceSerial = '在此填写设备序列号'
+adb -s $deviceSerial install -r .\app\build\outputs\apk\debug\app-debug.apk
+```
+
+安装命令返回 `Success` 表示安装成功。调试包的签名由本机生成；如果设备上的已有版本签名不同，覆盖安装会失败，应先确认处理方式。其他项目可通过应用 ID `com.ai.playtv` 识别已安装的 PlayTV；安装和实际播放能力需要分别验证。
+
+## 开发资料
+
+- [项目工作规则](AGENTS.md)
+- [播放验证记录](docs/feature/test-tv-playback.md)
+- [播放器开发计划](docs/plans/playtv-player-v1-plan.md)
+- [播放器能力协作](docs/collaboration/player-ui-capability.md)
+- [依赖与构建配置](docs/rule/build-dependency-catalog.md)

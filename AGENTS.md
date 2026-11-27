@@ -1,10 +1,28 @@
 # AGENTS.md — PlayTV AI 工作入口
 
+PlayTV 的后续开发以 GenTV 仓库的 `launcher/playtv/` 为准；该目录是独立 Gradle 工程，不纳入 launcher 的 Gradle 构建。旧的独立 PlayTV 仓库仅作迁移前历史参考。PlaybackSDK 仍由独立仓库维护，构建输入位置见本目录 README。
+
+## 受限第三方信息禁入
+
+- 本工程禁止出现用户指定的受限第三方及其可识别的品牌、产品、服务、型号、商标、域名、包名、图像、链接、引述和其他关联信息。不得用拼写、拼音、大小写、缩写、分隔符、字符编码、译名或其他形式绕过；不因用于对比、否定、测试或历史说明而例外。
+- 适用范围包括源码、配置、依赖、资源、文档、文件名、本地生成物、提交内容与提交说明，以及面向项目的其他交付内容。开始或继续工作时发现既有内容，先清理可识别信息；必要的故障和验证事实仅以无法识别该第三方的通用描述保留。检查提交内容和提交说明后才提交、推送；历史记录中的情况须单独核查并如实报告。
+- 为避免本规则本身出现受限名称，使用不可逆的 SHA-256 指纹识别已知名称和型号。对候选文本做 Unicode NFKC 归一化、大小写折叠，并移除空白及标点，然后计算候选文本及其子串的 UTF-8 字节 SHA-256；与下列任一值一致即包含受限标识：
+
+  - `4f7489771c3c13c30b9972380c767c48a4dfd00ba4c6770a943479a18d0e3ba3`
+  - `3946bc6e02fef8726b19ee574f0df484505086117bc9d877dd4228da710bd547`
+  - `64f14199ee13ab8dc89ff0b705307008868c0b8c287955d26e4d6c5695aa1ee1`
+  - `6791e1bd45499837dded382d32b960689df97e740590b7a2a180556baa051c2a`
+  - `60f1b1c1d68bdb3132ab2841abd151472adc9553599f7549d5096ed09a0fa604`
+  - `c5d6c441a89fb8886b8b1abb8f1fdcd497ade4e02c54b9382ce0e0cc6ba38991`
+  - `72974417465b5c5d888e57cad4672de2e3d8cab2faf8f5fb751de83c58e09c78`
+
+  指纹只覆盖已知标识，不代表关联产品、图像或其他变体已穷尽；仍须结合上下文做语义检查，不能依靠未命中指纹宣称全部合规。
+
 ## Gradle 构建进程
 
 - 只在已获授权时构建。构建前检查其他 Gradle 是否正在使用；若正在构建则等待，不中断其他工作。
 - 优先使用 Wrapper 的 `--no-daemon`。构建前后通过 PID、启动时间和父进程核对归属；结束后只清理由本次构建启动且仍存活的进程，不使用 `gradlew --stop` 或按进程名批量结束。
-- PlayTV debug 打包统一使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`（需要离线时加 `-Offline`）。入口按顺序发布相邻 `PlaybackSDK-playtv` 当前源码并构建 PlayTV，启用 `-DTest=true`，使用唯一 SDK 版本并核对 APK 内双架构库；禁止用旧的固定版本替代该流程。直接 Gradle 打包和 Android Studio 默认 Run 触发的打包会提示使用该入口；运行设备时使用该入口生成的 APK，不能把失败或旧 APK 当成新包。仅编译或运行单元测试不触发此打包入口。
+- PlayTV debug 打包统一使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`（需要离线时加 `-Offline`）。入口检查 GenTV 仓库旁 `PlaybackSDK-playtv` 的源码与准备输入：有变化时发布唯一版本并覆盖 PlayTV 内的 Maven 产物，无变化或本地没有 SDK 时使用 PlayTV 的已有产物；SDK 编译失败不得回退旧产物。构建启用 `-DTest=true`，打包后核对 APK 内双架构库与所选 AAR 一致。直接 Gradle 打包和 Android Studio 默认 Run 触发的打包会提示使用该入口；运行设备时使用该入口生成的 APK，不能把失败或旧 APK 当成新包。仅编译或运行单元测试不触发此打包入口。
 
 开始任务先读本文件、[本项目基线](docs/rule/project-context.md) 与 [项目约定](docs/rule/project-conventions.md)。本工程独立维护自己的准则，日常开发以本工程文档为准；原型仅是初始化参考，后续变更不自动同步。
 
