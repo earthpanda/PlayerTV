@@ -3,6 +3,7 @@
 import com.ai.playtv.model.bean.domain.source.ImportedSource
 import com.ai.playtv.model.bean.domain.source.SourceKind
 import com.ai.playtv.model.bean.domain.source.ReferenceKind
+import com.ai.playtv.model.bean.domain.source.withMissingMetadataFrom
 import java.net.URI
 
 /** Pure rules: extensions discover candidates, content determines playlist type. */
@@ -33,6 +34,42 @@ object SourceRules {
         return (absolute + relative).mapNotNull { value ->
             val uri = runCatching { checkedUrl(value) }.getOrNull() ?: return@mapNotNull null
             if (candidate(uri.path.orEmpty()) || uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/")) uri.toString() else null
+        }.distinct().toList()
+    }
+
+    /** Ordinary links are discovery targets, never playable candidates by themselves. */
+    fun linkedPages(text: String, base: URI, html: Boolean): List<String> {
+        val content = text.replace(Regex("(?is)<(script|style)\\b[^>]*>.*?</\\1\\s*>"), " ")
+        val htmlLinks = Regex("(?i)<a\\b[^>]*\\bhref\\s*=\\s*[\"']([^\"']+)[\"']")
+            .findAll(content).map { it.groupValues[1].replace("&amp;", "&", ignoreCase = true) }
+        val markdownLinks = if (html) emptySequence() else
+            Regex("(?<!!)\\[[^\\]]+\\]\\(<?([^\\s)>]+)").findAll(content).map { it.groupValues[1] }
+        val links = markdownLinks + htmlLinks
+        return links.mapNotNull { raw ->
+            val value = raw.substringBefore('#').trim()
+            if (value.isEmpty()) return@mapNotNull null
+            val uri = runCatching { checkedUrl(base.resolve(value).toString()) }.getOrNull() ?: return@mapNotNull null
+            val path = uri.path.orEmpty()
+            if (candidate(path) || isJson(path) || ReferenceKind.CLOUD_SHARE in referenceKinds(uri.toString())) return@mapNotNull null
+            val githubRepository = uri.host.equals("github.com", true) && path.trim('/').split('/').size == 2
+            val last = path.substringAfterLast('/')
+            val extension = last.substringAfterLast('.', "").lowercase()
+            if (!githubRepository && extension.isNotEmpty() && extension !in setOf("html", "htm", "php", "asp", "aspx", "md", "markdown")) return@mapNotNull null
+            uri.toString()
+        }.distinct().toList()
+    }
+
+    /** Static HTML only: inspect links and visible text, without executing scripts. */
+    fun htmlSourceLinks(html: String, base: URI): List<String> {
+        val content = html.replace(Regex("(?is)<(script|style)\\b[^>]*>.*?</\\1\\s*>"), " ")
+        val hrefs = Regex("(?i)\\bhref\\s*=\\s*[\"']([^\"']+)[\"']").findAll(content)
+            .map { it.groupValues[1].replace("&amp;", "&", ignoreCase = true) }
+        val visible = content.replace(Regex("(?s)<[^>]*>"), " ")
+        val urls = urlPattern.findAll(visible).map { it.value.trimEnd('.', ',', ';') }
+        return (hrefs + urls).mapNotNull { value ->
+            val uri = runCatching { checkedUrl(base.resolve(value).toString()) }.getOrNull() ?: return@mapNotNull null
+            uri.toString().takeIf { candidate(uri.path.orEmpty()) || isJson(uri.path.orEmpty()) ||
+                uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/") }
         }.distinct().toList()
     }
 
@@ -114,7 +151,10 @@ object SourceRules {
                     title = null; channelId = null; logoUrl = null
                 }
             }
-        }.distinctBy { it.id }
+        }.fold(linkedMapOf<String, ImportedSource>()) { unique, item ->
+            unique[item.id] = unique[item.id]?.withMissingMetadataFrom(item) ?: item
+            unique
+        }.values.toList()
         return ParsedPlaylist(items, skipped)
     }
 

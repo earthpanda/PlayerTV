@@ -40,6 +40,7 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
     /** Invalidate delayed saves from older scans of the same user-entered address. */
     fun begin(input: String, sessionId: String) { activeSessions[input.trim()] = sessionId }
     fun end(input: String, sessionId: String) { activeSessions.remove(input.trim(), sessionId) }
+    fun ownsRefresh(input: String, sessionId: String): Boolean = activeSessions[input.trim()] == sessionId
 
     suspend fun load() = operation { initialize() }
 
@@ -55,6 +56,34 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
         val updated = current.copy(lastUsedAtMs = timestamp)
         commit(entries.map { if (it.id == id) updated else it })
         activeSessions.remove(current.input)
+        updated
+    }
+
+    /** Reserve a refresh only while the opened snapshot is still current. */
+    suspend fun beginRefresh(expected: SourceHistoryEntry, sessionId: String): Boolean = operation {
+        initialize()
+        entries.firstOrNull { it.id == expected.id } == expected &&
+            activeSessions.putIfAbsent(expected.input, sessionId) == null
+    }
+
+    /** Commit only the latest owner's completed scan; incomplete scans cannot remove cached items. */
+    suspend fun finishRefresh(expected: SourceHistoryEntry, sessionId: String, result: SourceDiscovery): SourceHistoryEntry? = operation {
+        initialize()
+        val current = entries.firstOrNull { it.id == expected.id } ?: return@operation null
+        if (current != expected || activeSessions[expected.input] != sessionId) return@operation null
+        val updated = refreshedHistory(current, result)
+        if (updated != current) {
+            val file = historyFile()
+            if (activeSessions[expected.input] != sessionId) return@operation null
+            val before = entries
+            val ordered = writeSnapshot(file, before.map { if (it.id == current.id) updated else it })
+            // A newer owner can start while AtomicFile writes; it cannot save while this mutex is held.
+            if (activeSessions[expected.input] != sessionId) {
+                writeSnapshot(file, before)
+                return@operation null
+            }
+            publish(ordered)
+        }
         updated
     }
 
@@ -116,10 +145,13 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
     }
 
     private suspend fun commit(updated: List<SourceHistoryEntry>) {
+        publish(writeSnapshot(historyFile(), updated))
+    }
+
+    private fun writeSnapshot(file: AtomicFile, updated: List<SourceHistoryEntry>): List<SourceHistoryEntry> {
         val ordered = updated.sortedByDescending { it.lastUsedAtMs }
         val bytes = encode(ordered).toString().toByteArray(Charsets.UTF_8)
         if (bytes.size > MAX_BYTES) throw IOException("History exceeds capacity")
-        val file = historyFile()
         val stream = file.startWrite()
         try {
             stream.write(bytes)
@@ -128,6 +160,10 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
             file.failWrite(stream)
             throw error
         }
+        return ordered
+    }
+
+    private fun publish(ordered: List<SourceHistoryEntry>) {
         entries = ordered
         mutableState.value = SourceHistorySnapshot(entries, loading = false)
     }
@@ -157,7 +193,7 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
             val id = entry.getString("id")
             require(id == identity(input) && result.none { it.id == id }) { "Invalid history identity" }
             val items = entry.getJSONArray("items")
-            require(items.length() in 1..MAX_IMPORTED_SOURCES) { "Invalid history candidates" }
+            require(items.length() in 0..MAX_IMPORTED_SOURCES) { "Invalid history candidates" }
             val sources = (0 until items.length()).map { index ->
                 val item = items.getJSONObject(index)
                 val url = SourceRules.checkedUrl(item.getString("url")).toString()
@@ -176,4 +212,13 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
         .digest(input.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     private companion object { const val MAX_BYTES = 32 * 1024 * 1024 }
+}
+
+/** A verified complete scan replaces the list; all other results only update or append. */
+internal fun refreshedHistory(current: SourceHistoryEntry, result: SourceDiscovery): SourceHistoryEntry {
+    val complete = !result.partial && !result.rateLimited && (result.items.isNotEmpty() || result.emptyVerified)
+    if (complete) return current.copy(items = result.items, partial = false)
+    val updates = result.items.associateBy { it.id }
+    val merged = (current.items.map { updates[it.id] ?: it } + result.items).distinctBy { it.id }
+    return current.copy(items = merged.take(MAX_IMPORTED_SOURCES), partial = true)
 }

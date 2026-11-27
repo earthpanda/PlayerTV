@@ -71,6 +71,86 @@ class SourceRepositoryTest {
         assertEquals(SourceKind.HLS, hls.items.single().kind)
     }
 
+    @Test fun readmeFollowsOneLinkedPageAndParsesItsSourcesBeforeRepositoryApi() = runBlocking {
+        val fake = FakeService()
+        val readme = "https://raw.githubusercontent.com/example/repo/HEAD/README.md"
+        val visited = mutableListOf<String>()
+        fake.beforeContent = { visited.add(it) }
+        fake.bodies[readme] = "text/plain" to "[direct](https://example.org/start.mp4) [page](https://example.org/page)"
+        fake.bodies["https://example.org/page"] = "text/html" to """
+            <a href="channels.m3u">channels</a><a href="config.json">config</a>
+            <a href="https://example.org/deeper">deeper</a><script>https://example.org/script.mp4</script>
+        """.trimIndent()
+        fake.bodies["https://example.org/channels.m3u"] = "text/plain" to
+            "#EXTM3U\n#EXTINF:-1 tvg-logo=\"../logo.png\",News\nhttps://example.org/live.m3u8"
+        fake.bodies["https://example.org/config.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/other.mp4"}]}"""
+        fake.beforeRepository = {
+            assertTrue("https://example.org/page" in visited)
+            assertTrue("https://example.org/channels.m3u" in visited)
+        }
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(listOf("https://example.org/start.mp4", "https://example.org/live.m3u8",
+            "https://example.org/other.mp4"), result.items.map { it.url })
+        assertEquals("https://example.org/logo.png", result.items[1].logoUrl)
+        assertFalse("https://example.org/deeper" in visited)
+        assertFalse(result.items.any { it.url.endsWith("script.mp4") })
+    }
+
+    @Test fun readmeFollowsLinkedRepositoryWithoutFollowingItsOrdinaryLinks() = runBlocking {
+        val fake = FakeService()
+        val visited = mutableListOf<String>()
+        fake.beforeContent = { visited.add(it) }
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] =
+            "text/plain" to "[linked](https://github.com/other/project)"
+        fake.bodies["https://raw.githubusercontent.com/other/project/HEAD/README.md"] =
+            "text/plain" to "[video](https://example.org/video.mp4) [page](https://example.org/deeper)"
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(listOf("https://example.org/video.mp4"), result.items.map { it.url })
+        assertFalse("https://example.org/deeper" in visited)
+    }
+
+    @Test fun linkedEndpointsCanReturnJsonOrPlaylistWithoutFileExtensions() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] = "text/plain" to
+            "[config](https://example.org/config) <a href='https://example.org/list'>list</a>"
+        fake.bodies["https://example.org/config"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/video.mp4"}]}"""
+        fake.bodies["https://example.org/list"] = "application/vnd.apple.mpegurl" to
+            "#EXTM3U\n#EXTINF:-1,News\nhttps://example.org/live.m3u8"
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(listOf("https://example.org/video.mp4", "https://example.org/live.m3u8"),
+            result.items.map { it.url })
+    }
+
+    @Test fun emptyPlaylistIsVerifiedButHtmlErrorPageIsNot() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://example.org/list.m3u"] = "text/plain" to "#EXTM3U\n"
+        fake.bodies["https://example.org/unavailable.m3u"] = "text/html" to "<html>Unavailable</html>"
+        val repository = SourceRepository(fake)
+        val empty = repository.discover("https://example.org/list.m3u")
+        assertTrue(empty.items.isEmpty())
+        assertTrue(empty.emptyVerified)
+        val html = repository.discover("https://example.org/unavailable.m3u")
+        assertTrue(html.items.isEmpty())
+        assertFalse(html.emptyVerified)
+    }
+
+    @Test fun emptyJsonIsVerifiedOnlyForRecognizedValidConfiguration() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://example.org/empty.json"] = "application/json" to """{"lives":[]}"""
+        fake.bodies["https://example.org/unknown.json"] = "application/json" to """{"other":[]}"""
+        fake.bodies["https://example.org/bad.json"] = "application/json" to """{"lives":[{}]}"""
+        val repository = SourceRepository(fake)
+        assertTrue(repository.discover("https://example.org/empty.json").emptyVerified)
+        val unknown = repository.discover("https://example.org/unknown.json")
+        assertTrue(unknown.partial)
+        assertFalse(unknown.emptyVerified)
+        val bad = repository.discover("https://example.org/bad.json")
+        assertTrue(bad.partial)
+        assertFalse(bad.emptyVerified)
+    }
+
     @Test fun jsonConfigFollowsNestedConfigsAndLiveListsWithoutTreatingOtherFieldsAsSources() = runBlocking {
         val fake = FakeService()
         fake.bodies["https://example.org/root.json"] = "application/json" to

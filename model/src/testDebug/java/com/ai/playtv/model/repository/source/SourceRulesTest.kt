@@ -55,4 +55,18 @@ class SourceRulesTest {
         assertNull(items[2].channelId)
         assertNull(items[2].logoUrl)
     }
+
+    @Test fun duplicateChannelCanSupplyMissingLogoWithoutChangingItsOrder() {
+        val text = """
+            #EXTM3U
+            #EXTINF:-1,First name
+            https://example.org/live.m3u8
+            #EXTINF:-1 tvg-logo="logo.png",Second name
+            https://example.org/live.m3u8
+        """.trimIndent()
+        val items = SourceRules.playlist(URI("https://example.org/list.m3u"), text).items
+        assertEquals(1, items.size)
+        assertEquals("First name", items.single().name)
+        assertEquals("https://example.org/logo.png", items.single().logoUrl)
+    }
 }

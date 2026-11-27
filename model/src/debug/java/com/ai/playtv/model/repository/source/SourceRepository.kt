@@ -36,7 +36,14 @@ class SourceRepository(private val service: GithubSourceService) {
                 var changed = false
                 var clipped = false
                 for (source in batch) {
-                    if (source.url in urls) continue
+                    if (source.url in urls) {
+                        val index = items.indexOfFirst { it.url == source.url }
+                        if (index >= 0) {
+                            val merged = items[index].withMissingMetadataFrom(source)
+                            if (merged != items[index]) { items[index] = merged; changed = true }
+                        }
+                        continue
+                    }
                     if (items.size >= maxItems) { clipped = true; continue }
                     urls.add(source.url); items.add(source); changed = true
                 }
@@ -44,10 +51,10 @@ class SourceRepository(private val service: GithubSourceService) {
                 clipped
             }
             scanner.scan(normalized, initial = fetched, required = true)
-            return bounded(origin, items, scanner.partial, emptySet()).also { onUpdate(it) }
+            return bounded(origin, items, scanner.partial, emptySet(), emptyVerified = scanner.recognized && !scanner.partial).also { onUpdate(it) }
         }
-        val type = content?.let(SourceRules::kind) ?: SourceKind.UNKNOWN
-        val playlist = if (type == SourceKind.UNKNOWN && content != null &&
+        val type = if (fetched.isHtml) SourceKind.UNKNOWN else content?.let(SourceRules::kind) ?: SourceKind.UNKNOWN
+        val playlist = if (!fetched.isHtml && type == SourceKind.UNKNOWN && content != null &&
             (content.trimStart('\uFEFF', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", true) || uri.path.endsWith(".m3u", true) || uri.path.endsWith(".m3u8", true) || uri.path.endsWith(".txt", true)))
             SourceRules.playlist(URI(fetched.finalUrl), if (fetched.truncated) content.substringBeforeLast('\n', "") else content,
                 uri.path.endsWith(".txt", true)) else null
@@ -74,7 +81,14 @@ class SourceRepository(private val service: GithubSourceService) {
                     var changed = false
                     var clipped = false
                     for (source in batch) {
-                        if (source.url in urls) continue
+                        if (source.url in urls) {
+                            val index = found.indexOfFirst { it.url == source.url }
+                            if (index >= 0) {
+                                val merged = found[index].withMissingMetadataFrom(source)
+                                if (merged != found[index]) { found[index] = merged; changed = true }
+                            }
+                            continue
+                        }
                         if (found.size >= maxItems) { clipped = true; continue }
                         urls.add(source.url); found.add(source); changed = true
                     }
@@ -86,14 +100,18 @@ class SourceRepository(private val service: GithubSourceService) {
                 return bounded(origin, found, initial.partial || scanner.partial, references).also { onUpdate(it) }
             }
         }
-        return bounded(origin, items, items.size > maxItems || fetched.truncated || playlist?.skipped == true, references).also { onUpdate(it) }
+        val verifiedEmpty = playlist != null && !fetched.isHtml && !fetched.truncated && !playlist.skipped &&
+            content?.trimStart('\uFEFF', ' ', '\n', '\r', '\t')?.startsWith("#EXTM3U", true) == true
+        return bounded(origin, items, items.size > maxItems || fetched.truncated || playlist?.skipped == true,
+            references, emptyVerified = verifiedEmpty).also { onUpdate(it) }
     }
 
     /** Resolve redirects again at selection time so temporary signed targets are not saved. */
     suspend fun playbackUrl(url: String): String = fetch(SourceRules.checkedUrl(url).toString(), false).finalUrl
 
     /** Ordered discovery: raw README, repository API, then the rendered README article. */
-    private suspend fun repository(owner: String, repo: String, onUpdate: suspend (SourceDiscovery) -> Unit): SourceDiscovery {
+    private suspend fun repository(owner: String, repo: String, onUpdate: suspend (SourceDiscovery) -> Unit,
+        followLinks: Boolean = true): SourceDiscovery {
         require(owner.matches(Regex("[A-Za-z0-9_.-]+")) && repo.matches(Regex("[A-Za-z0-9_.-]+")))
         val rawRoot = "https://raw.githubusercontent.com/".toHttpUrl().newBuilder()
             .addPathSegment(owner).addPathSegment(repo).build().toString().trimEnd('/') + "/"
@@ -104,8 +122,13 @@ class SourceRepository(private val service: GithubSourceService) {
         val scannedDocuments = mutableListOf<String>()
         val scannedLists = mutableListOf<String>()
         val scannedTransport = mutableListOf<String>()
+        val linkedPages = mutableListOf<String>()
+        var scanningLinkedPages = false
+        var rootListCount = 0
+        var linkedListCount = 0
         var partial = false
         var rateLimited = false
+        var verifiedEmpty = false
         var apiFailure: Exception? = null
 
         fun raw(ref: String, path: String): String {
@@ -125,7 +148,14 @@ class SourceRepository(private val service: GithubSourceService) {
         fun isTs(path: String): Boolean = path.endsWith(".ts", true)
         fun add(source: ImportedSource): Boolean {
             val key = canonical(source.url)
-            if (key in resultKeys) return false
+            if (key in resultKeys) {
+                val index = results.indexOfFirst { canonical(it.url) == key }
+                if (index < 0) return false
+                val merged = results[index].withMissingMetadataFrom(source)
+                if (merged == results[index]) return false
+                results[index] = merged
+                return true
+            }
             if (results.size >= maxItems) { partial = true; return false }
             resultKeys.add(key)
             results.add(source)
@@ -138,8 +168,7 @@ class SourceRepository(private val service: GithubSourceService) {
             var changed = false
             var clipped = false
             for (source in batch) {
-                if (canonical(source.url) in resultKeys) continue
-                if (results.size >= maxItems) { clipped = true; continue }
+                if (canonical(source.url) !in resultKeys && results.size >= maxItems) { clipped = true; continue }
                 if (add(source)) changed = true
             }
             partial = partial || clipped
@@ -177,11 +206,13 @@ class SourceRepository(private val service: GithubSourceService) {
                 coroutineContext.ensureActive()
                 if (results.size >= maxItems) { partial = true; break }
                 if (seen(url, scannedLists)) continue
-                if (scannedLists.size >= 8) { partial = true; break }
+                if ((if (scanningLinkedPages) linkedListCount else rootListCount) >= 8) { partial = true; break }
                 scannedLists.add(url)
+                if (scanningLinkedPages) linkedListCount++ else rootListCount++
                 try {
                     val found = withTimeoutOrNull(5_000L) { discover(url) }
                     if (found == null) { partial = true; continue }
+                    verifiedEmpty = verifiedEmpty || found.emptyVerified
                     var changed = false
                     found.items.forEach { if (add(it)) changed = true }
                     partial = partial || found.partial
@@ -195,27 +226,108 @@ class SourceRepository(private val service: GithubSourceService) {
                 if (results.size >= maxItems) { partial = true; break }
                 jsonScanner.scan(url)
                 partial = partial || jsonScanner.partial
+                verifiedEmpty = verifiedEmpty || (jsonScanner.recognized && !jsonScanner.partial)
             }
         }
-        suspend fun scanMarkdown(url: String) {
+        suspend fun scanMarkdown(url: String, collectLinks: Boolean = false) {
             if (seen(url, scannedDocuments)) return
             val fetched = fetch(url, true)
             scannedDocuments.add(url)
             partial = partial || fetched.truncated
             fetched.text?.let { text ->
                 references.addAll(SourceRules.referenceKinds(text))
+                if (collectLinks) linkedPages.addAll(SourceRules.linkedPages(text, URI(fetched.finalUrl), html = false))
                 processLinks(SourceRules.markdownLinks(text, URI(fetched.finalUrl)))
                 processLinks(SourceRules.markdownJsonLinks(text, URI(fetched.finalUrl)))
             }
         }
 
         val readmeFinished = withTimeoutOrNull(15_000L) {
-            try { scanMarkdown(raw("HEAD", "README.md")) }
+            try { scanMarkdown(raw("HEAD", "README.md"), collectLinks = followLinks) }
             catch (e: SourceHttpFailure) { if (e.statusCode != 404) partial = true }
             catch (e: IOException) { partial = true }
             true
         }
         if (readmeFinished == null) partial = true
+
+        // One layer only; linked repositories use their normal discovery without following more links.
+        if (followLinks && linkedPages.isNotEmpty() && results.size < maxItems) {
+            scanningLinkedPages = true
+            val seen = mutableSetOf("https://github.com/$owner/$repo")
+            val pages = linkedPages.distinct()
+            if (pages.size > 12) partial = true
+            val finished = withTimeoutOrNull(30_000L) {
+                for (url in pages.take(12)) {
+                    coroutineContext.ensureActive()
+                    if (results.size >= maxItems) { partial = true; break }
+                    if (!seen.add(url.trimEnd('/'))) continue
+                    try {
+                        val completed = withTimeoutOrNull(5_000L) {
+                            val uri = SourceRules.checkedUrl(url)
+                            val parts = uri.path.orEmpty().trim('/').split('/').filter { it.isNotEmpty() }
+                            if (uri.host.equals("github.com", true) && parts.size == 2) {
+                                val found = repository(parts[0], parts[1].removeSuffix(".git"), { update ->
+                                    var changed = false
+                                    update.items.forEach { if (add(it)) changed = true }
+                                    partial = partial || update.partial
+                                    references.addAll(update.references)
+                                    rateLimited = rateLimited || update.rateLimited
+                                    if (changed) publish()
+                                }, followLinks = false)
+                                partial = partial || found.partial
+                                verifiedEmpty = verifiedEmpty || found.emptyVerified
+                            } else {
+                                val normalized = normalizeGithubFile(uri)
+                                val page = fetch(normalized, true)
+                                partial = partial || page.truncated
+                                if (page.text == null) {
+                                    if (page.isMedia) {
+                                        if (add(item(normalized, SourceKind.MEDIA))) publish()
+                                    } else partial = true
+                                }
+                                page.text?.let { content ->
+                                    references.addAll(SourceRules.referenceKinds(content))
+                                    val base = URI(page.finalUrl)
+                                    when {
+                                        page.isJson -> {
+                                            jsonScanner.scan(normalized, initial = page)
+                                            partial = partial || jsonScanner.partial
+                                            verifiedEmpty = verifiedEmpty || (jsonScanner.recognized && !jsonScanner.partial)
+                                        }
+                                        page.isHtml -> processLinks(SourceRules.htmlSourceLinks(content, base))
+                                        content.trimStart('\uFEFF', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", true) -> {
+                                            val kind = SourceRules.kind(content)
+                                            if (kind != SourceKind.UNKNOWN) {
+                                                if (add(item(normalized, kind))) publish()
+                                            } else {
+                                                val text = if (page.truncated) content.substringBeforeLast('\n', "") else content
+                                                val playlist = SourceRules.playlist(base, text)
+                                                verifiedEmpty = verifiedEmpty || (!page.truncated && !playlist.skipped && playlist.items.isEmpty())
+                                                var changed = false
+                                                playlist.items.forEach { if (add(it)) changed = true }
+                                                partial = partial || playlist.skipped
+                                                if (changed) publish()
+                                            }
+                                        }
+                                        else -> {
+                                            processLinks(SourceRules.markdownLinks(content, base))
+                                            processLinks(SourceRules.markdownJsonLinks(content, base))
+                                        }
+                                    }
+                                }
+                            }
+                            true
+                        }
+                        if (completed == null) partial = true
+                    } catch (e: IOException) { partial = true }
+                    catch (e: retrofit2.HttpException) { partial = true; rateLimited = rateLimited || e.isGithubRateLimited() }
+                    catch (e: IllegalArgumentException) { partial = true }
+                }
+                true
+            }
+            if (finished == null) partial = true
+            scanningLinkedPages = false
+        } else if (followLinks && linkedPages.isNotEmpty()) partial = true
 
         if (results.size < maxItems) {
             val apiFinished = withTimeoutOrNull(30_000L) {
@@ -272,7 +384,8 @@ class SourceRepository(private val service: GithubSourceService) {
             if (htmlFinished == null) partial = true
         }
         if (results.isEmpty() && apiFailure != null) throw apiFailure!!
-        return bounded(SourceOrigin.GITHUB_REPOSITORY, results, partial, references.toSet(), rateLimited).also { onUpdate(it) }
+        return bounded(SourceOrigin.GITHUB_REPOSITORY, results, partial, references.toSet(), rateLimited,
+            emptyVerified = verifiedEmpty && !partial && !rateLimited).also { onUpdate(it) }
     }
 
     private suspend fun normalizeGithubFile(uri: URI): String {
@@ -292,7 +405,8 @@ class SourceRepository(private val service: GithubSourceService) {
     }
 
     private data class Fetched(val finalUrl: String, val text: String?, val truncated: Boolean,
-        val isHtml: Boolean = false, val isTransportStream: Boolean = false, val isJson: Boolean = false)
+        val isHtml: Boolean = false, val isTransportStream: Boolean = false, val isJson: Boolean = false,
+        val isMedia: Boolean = false)
 
     /** One bounded scan is shared by all JSON references in the discovery session. */
     private inner class JsonScanner(
@@ -303,6 +417,8 @@ class SourceRepository(private val service: GithubSourceService) {
         private val configs = mutableSetOf<String>()
         private val lists = mutableSetOf<String>()
         var partial = false
+            private set
+        var recognized = false
             private set
 
         private suspend fun deliver(batch: List<ImportedSource>) {
@@ -331,7 +447,8 @@ class SourceRepository(private val service: GithubSourceService) {
                 if (fetched == null) { partial = true; return }
                 if (fetched.truncated) { partial = true; return }
                 val parsed = SourceJsonRules.parse(fetched.text ?: throw IOException("Missing JSON content"))
-                partial = partial || parsed.truncated
+                recognized = recognized || parsed.recognized
+                partial = partial || parsed.truncated || !parsed.recognized
                 for (reference in parsed.references) {
                     coroutineContext.ensureActive()
                     if (full()) { partial = true; break }
@@ -421,7 +538,8 @@ class SourceRepository(private val service: GithubSourceService) {
                     val path = URI(current).path.orEmpty()
                     val json = mime.contains("json") || SourceRules.isJson(path)
                     val textual = mime.startsWith("text/") || mime.contains("mpegurl") || mime.contains("dash+xml") || mime.contains("xml") || json || SourceRules.isMarkdown(path) || path.endsWith(".txt", true) || path.endsWith(".m3u", true) || path.endsWith(".m3u8", true) || path.endsWith(".mpd", true)
-                    if (!textual) return@withContext Fetched(current, null, false)
+                    if (!textual) return@withContext Fetched(current, null, false,
+                        isMedia = mime.startsWith("video/") || mime.startsWith("audio/"))
                     val stream = body.byteStream()
                     val output = java.io.ByteArrayOutputStream()
                     val buffer = ByteArray(8192)
@@ -445,12 +563,13 @@ class SourceRepository(private val service: GithubSourceService) {
         return ImportedSource(url, uri.path.substringAfterLast('/').ifEmpty { uri.host }, url, kind)
     }
     private fun bounded(origin: SourceOrigin, items: List<ImportedSource>, incomplete: Boolean, references: Set<ReferenceKind>,
-        rateLimited: Boolean = false): SourceDiscovery {
+        rateLimited: Boolean = false, emptyVerified: Boolean = false): SourceDiscovery {
         val kept = mutableListOf<ImportedSource>()
         for (item in items) {
             if (kept.size >= maxItems) break
             kept.add(item.copy(name = item.name.take(256)))
         }
-        return SourceDiscovery(origin, kept, incomplete || kept.size < items.size, references, rateLimited)
+        return SourceDiscovery(origin, kept, incomplete || kept.size < items.size, references, rateLimited,
+            emptyVerified = emptyVerified && kept.isEmpty() && !incomplete && !rateLimited)
     }
 }

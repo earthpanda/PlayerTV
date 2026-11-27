@@ -14,6 +14,8 @@ import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
 import com.ai.playtv.model.bean.domain.source.ImportedSource
+import com.ai.playtv.model.bean.domain.source.MAX_IMPORTED_SOURCES
+import com.ai.playtv.model.bean.domain.source.SourceHistoryEntry
 import com.ai.playtv.model.repository.source.SourceRepository
 import com.ai.playtv.model.repository.source.sourceHttpStatus
 import com.ai.playtv.di.NetworkDependencies
@@ -21,8 +23,14 @@ import com.ai.playtv.di.SourceDiscoveryOwner
 import com.ai.playtv.model.manager.source.SourceDiscoverySession
 import com.ai.playtv.model.storage.source.SourceHistoryStore
 import java.io.IOException
+import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
@@ -47,6 +55,9 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     private var importedSource: ImportedSource? = null
     private var requestedSource: ImportedSource? = null
     private var selectionJob: Job? = null
+    private val historyRefreshActive = AtomicBoolean(true)
+    private val historyRefreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var historyRefreshToken: Pair<String, String>? = null
 
     init {
         if (history != null) viewModelScope.launch {
@@ -75,13 +86,15 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 val playable = startSources.filter { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }
                 val firstSource = if (initialItemId == null) playable.firstOrNull()
                     else playable.firstOrNull { it.id == initialItemId }
-                if (firstSource == null) throw IOException("Source unavailable")
+                if (firstSource == null && (restored == null || startSources.isNotEmpty() || initialItemId != null))
+                    throw IOException("Source unavailable")
                 if (restored != null) setState { copy(imported = restored.items, importPartial = restored.partial,
-                    activeId = firstSource.id, activeName = firstSource.name) }
+                    activeId = firstSource?.id, activeName = firstSource?.name) }
+                if (restored != null) refreshHistory(restored)
                 val created = AndroidPlayer.create(appContext)
                 player = created
                 surface?.let { report(created.setSurface(it)) }
-                selectImported(firstSource)
+                firstSource?.let(::selectImported)
                 created.state.collect { snapshot ->
                     if (snapshot.generation != sourceGeneration) return@collect
                     if (lastPhase != snapshot.phase) {
@@ -146,6 +159,46 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
         }
     }
     fun foreground() { background = false }
+    private fun refreshHistory(entry: SourceHistoryEntry) {
+        val store = history ?: return
+        val token = UUID.randomUUID().toString()
+        historyRefreshToken = entry.input to token
+        setState { copy(discoveryRunning = true, discoveryFailed = false, discoveryRateLimited = false) }
+        historyRefreshScope.launch {
+            try {
+                if (!store.beginRefresh(entry, token) || !historyRefreshActive.get()) {
+                    setState { if (historyRefreshActive.get()) copy(discoveryRunning = false, discoveryFailed = true) else this }
+                    return@launch
+                }
+                val result = repository.discover(entry.input) { update ->
+                    currentCoroutineContext().ensureActive()
+                    if (!store.ownsRefresh(entry.input, token)) throw CancellationException("Refresh superseded")
+                    setState {
+                        if (!historyRefreshActive.get()) return@setState this
+                        val updated = update.items.associateBy { it.id }
+                        val combined = (imported.map { updated[it.id] ?: it } + update.items).distinctBy { it.id }
+                        copy(imported = combined.take(MAX_IMPORTED_SOURCES),
+                            importPartial = importPartial || update.partial || combined.size > MAX_IMPORTED_SOURCES,
+                            discoveryRateLimited = update.rateLimited)
+                    }
+                }
+                currentCoroutineContext().ensureActive()
+                if (!historyRefreshActive.get()) return@launch
+                val saved = store.finishRefresh(entry, token, result)
+                setState {
+                    if (!historyRefreshActive.get()) this
+                    else if (saved == null) copy(discoveryRunning = false, discoveryFailed = true)
+                    else copy(imported = saved.items, importPartial = saved.partial,
+                        discoveryRunning = false, discoveryRateLimited = result.rateLimited)
+                }
+            } catch (cancelled: CancellationException) {
+                setState { if (historyRefreshActive.get()) copy(discoveryRunning = false, discoveryFailed = true) else this }
+                throw cancelled
+            }
+            catch (_: Exception) { setState { if (historyRefreshActive.get()) copy(discoveryRunning = false, discoveryFailed = true) else this } }
+            finally { store.end(entry.input, token) }
+        }
+    }
     private fun selectImported(source: ImportedSource) {
         selectionJob?.cancel()
         requestedSource = source
@@ -179,6 +232,9 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     }
     override fun onCleared() {
         selectionJob?.cancel()
+        historyRefreshActive.set(false)
+        historyRefreshToken?.let { (input, token) -> history?.end(input, token) }
+        CoroutineScope(Dispatchers.IO).launch { historyRefreshScope.cancel() }
         if (sessionId != null) discoveryOwner?.close(sessionId)
         network.close()
         surface = null
