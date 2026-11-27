@@ -18,6 +18,7 @@ object SourceRules {
     fun isTransportStream(bytes: ByteArray): Boolean = bytes.size >= 377 &&
         bytes[0] == 0x47.toByte() && bytes[188] == 0x47.toByte() && bytes[376] == 0x47.toByte()
     fun isMarkdown(path: String) = path.endsWith(".md", true) || path.endsWith(".markdown", true)
+    fun isJson(path: String) = path.endsWith(".json", true)
     fun referenceKinds(text: String): Set<ReferenceKind> {
         val urls = urlPattern.findAll(text).mapNotNull { runCatching { URI(it.value).host?.lowercase() }.getOrNull() }.toList()
         return buildSet {
@@ -49,6 +50,34 @@ object SourceRules {
             val uri = runCatching { checkedUrl(value) }.getOrNull() ?: return@mapNotNull null
             if (candidate(uri.path.orEmpty()) || uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/")) uri.toString() else null
         }.distinct().toList()
+    }
+    /** JSON links and standalone filenames in a raw repository README. */
+    fun markdownJsonLinks(text: String, base: URI): List<String> {
+        val absolute = urlPattern.findAll(text).map { it.value.trimEnd('.', ',', ';') }
+        val relative = Regex("\\]\\(<?([^\\s)>]+)").findAll(text).map { it.groupValues[1] }
+        val names = if (base.host.equals("raw.githubusercontent.com", true))
+            Regex("(?<![A-Za-z0-9_./-])([A-Za-z0-9_-]+\\.json)(?![A-Za-z0-9_./-])", RegexOption.IGNORE_CASE)
+                .findAll(text).map { it.groupValues[1] }
+        else emptySequence()
+        return (names + relative + absolute).mapNotNull { value ->
+            val uri = runCatching { checkedUrl(base.resolve(value).toString()) }.getOrNull() ?: return@mapNotNull null
+            uri.toString().takeIf { isJson(uri.path.orEmpty()) }
+        }.distinct().toList()
+    }
+
+    fun githubReadmeHtmlJsonLinks(html: String, base: URI, rawReadme: URI): List<String> {
+        val start = Regex("<article\\b[^>]*\\bmarkdown-body\\b[^>]*>", RegexOption.IGNORE_CASE).find(html)
+            ?: return emptyList()
+        val end = html.indexOf("</article", start.range.last + 1, ignoreCase = true)
+        if (end < 0) return emptyList()
+        val article = html.substring(start.range.last + 1, end).replace("&amp;", "&", ignoreCase = true)
+        val links = Regex("\\bhref\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+            .findAll(article).mapNotNull { match ->
+                val uri = runCatching { checkedUrl(base.resolve(match.groupValues[1]).toString()) }.getOrNull()
+                uri?.toString()?.takeIf { isJson(uri.path.orEmpty()) }
+            }.toList()
+        val plainText = article.replace(Regex("<[^>]*>"), " ")
+        return (markdownJsonLinks(plainText, rawReadme) + links).distinct()
     }
     fun kind(content: String): SourceKind = when {
         content.lineSequence().any { it.trim().startsWith("#EXT-X-", true) } -> SourceKind.HLS

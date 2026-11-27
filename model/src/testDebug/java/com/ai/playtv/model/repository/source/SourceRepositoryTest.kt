@@ -70,6 +70,72 @@ class SourceRepositoryTest {
         assertEquals(1, hls.items.size)
         assertEquals(SourceKind.HLS, hls.items.single().kind)
     }
+
+    @Test fun jsonConfigFollowsNestedConfigsAndLiveListsWithoutTreatingOtherFieldsAsSources() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://example.org/root.json"] = "application/json" to
+            """{"urls":[{"url":"nested.json"}],"lives":[{"url":"channels.txt"}],"sites":[{"api":"https://example.org/not-video.mp4"}]}"""
+        fake.bodies["https://example.org/nested.json"] = "application/json" to
+            """{"urls":[{"url":"root.json"}],"lives":[{"name":"Movie","url":"https://example.org/video.mp4"},{"url":"http://example.org/unsupported.m3u"}]}"""
+        fake.bodies["https://example.org/channels.txt"] = "text/plain" to "News,https://example.org/news.m3u8"
+        val updates = mutableListOf<List<String>>()
+        val result = SourceRepository(fake).discover("https://example.org/root.json") { updates.add(it.items.map { item -> item.url }) }
+        assertEquals(listOf("https://example.org/video.mp4", "https://example.org/news.m3u8"), result.items.map { it.url })
+        assertEquals("Movie", result.items.first().name)
+        assertEquals("News", result.items.last().name)
+        assertTrue(result.partial)
+        assertTrue(updates.any { it == listOf("https://example.org/video.mp4") })
+    }
+
+    @Test fun readmeFilenameDiscoversJsonWhenRepositoryApiFails() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] = "text/plain" to "1. config.json"
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/config.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/channels.m3u"}]}"""
+        fake.bodies["https://example.org/channels.m3u"] = "text/plain" to
+            "#EXTM3U\n#EXTINF:-1,News\nhttps://example.org/live.m3u8"
+        fake.repositoryFailure = IOException("API unavailable")
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(listOf("https://example.org/live.m3u8"), result.items.map { it.url })
+        assertTrue(result.partial)
+    }
+
+    @Test fun malformedOrOversizedDirectJsonIsNotReturnedAsMedia() = runBlocking {
+        val fake = FakeService()
+        val url = "https://example.org/config.json"
+        val repo = SourceRepository(fake)
+        fake.bodies[url] = "application/json" to "{broken"
+        try { repo.discover(url); fail("invalid JSON must fail") } catch (_: IOException) { }
+        fake.bodies[url] = "application/json" to ("{\"padding\":\"" + "x".repeat(1024 * 1024) + "\"}")
+        val result = repo.discover(url)
+        assertTrue(result.items.isEmpty())
+        assertTrue(result.partial)
+    }
+
+    @Test fun repositoryTreeAndDirectMarkdownFollowJsonReferences() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] = "text/plain" to "no sources"
+        fake.treeResult = GithubTreeDto(false, listOf(GithubTreeEntryDto("config.json", "blob")))
+        fake.bodies["https://raw.githubusercontent.com/example/repo/main/config.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/live.mp4"}]}"""
+        fake.bodies["https://example.org/readme.md"] = "text/plain" to "[config](https://example.org/config.json)"
+        fake.bodies["https://example.org/config.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/other.mp4"}]}"""
+        val repo = SourceRepository(fake)
+        assertEquals("https://example.org/live.mp4", repo.discover("https://github.com/example/repo").items.single().url)
+        assertEquals("https://example.org/other.mp4", repo.discover("https://example.org/readme.md").items.single().url)
+    }
+
+    @Test fun jsonConfigLimitKeepsFoundSourcesAndMarksIncomplete() = runBlocking {
+        val fake = FakeService()
+        val refs = (0..16).joinToString(",") { "{\"url\":\"$it.json\"}" }
+        fake.bodies["https://example.org/root.json"] = "application/json" to "{\"urls\":[$refs]}"
+        for (index in 0..16) fake.bodies["https://example.org/$index.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/$index.mp4"}]}"""
+        val result = SourceRepository(fake).discover("https://example.org/root.json")
+        assertEquals(15, result.items.size)
+        assertTrue(result.partial)
+    }
     @Test fun playlistKeepsMoreThanHundredAndLimitsAtOneThousand() = runBlocking {
         val fake = FakeService()
         val repo = SourceRepository(fake)
@@ -93,6 +159,20 @@ class SourceRepositoryTest {
         assertTrue(overflow.partial)
     }
 
+    @Test fun jsonPlaylistPublishesFirstItemThenBatchesUpToTheLimit() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://example.org/config.json"] = "application/json" to
+            """{"lives":[{"url":"https://example.org/channels.m3u"}]}"""
+        fake.bodies["https://example.org/channels.m3u"] = "text/plain" to
+            ("#EXTM3U\n" + (1..1005).joinToString("\n") { "#EXTINF:-1,Channel $it\nhttps://tv.example/$it.m3u8" })
+        val sizes = mutableListOf<Int>()
+        val result = SourceRepository(fake).discover("https://example.org/config.json") { sizes.add(it.items.size) }
+        assertEquals(1, sizes.first())
+        assertEquals(1000, result.items.size)
+        assertEquals("Channel 1000", result.items.last().name)
+        assertTrue(result.partial)
+        assertTrue(sizes.size <= 25)
+    }
     @Test fun repositoryCombinesMediaAndReadmeAttachmentsAndReportsTruncation() = runBlocking {
         val fake = FakeService()
         fake.treeResult = GithubTreeDto(true, listOf(GithubTreeEntryDto("app/utils.ts", "blob"), GithubTreeEntryDto("docs/demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))
@@ -266,6 +346,15 @@ class SourceRepositoryTest {
         assertFalse(task.isCompleted)
         apiGate.complete(Unit)
         withTimeout(3_000) { task.join() }
+    }
+
+    @Test fun readmeHeadAndDefaultBranchStillDeduplicate() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] =
+            "text/plain" to "[video](demo.mp4)"
+        fake.treeResult = GithubTreeDto(false, listOf(GithubTreeEntryDto("demo.mp4", "blob")))
+        val result = SourceRepository(fake).discover("https://github.com/example/repo")
+        assertEquals(listOf("https://raw.githubusercontent.com/example/repo/HEAD/demo.mp4"), result.items.map { it.url })
     }
 
     @Test fun rateLimitedApiFallsBackToRenderedReadmeAndKeepsTheReason() = runBlocking {

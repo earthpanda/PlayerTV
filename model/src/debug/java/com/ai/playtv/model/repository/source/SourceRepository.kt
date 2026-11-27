@@ -28,6 +28,24 @@ class SourceRepository(private val service: GithubSourceService) {
         val normalized = normalizeGithubFile(uri)
         val fetched = fetch(normalized, true)
         val content = fetched.text
+        if (SourceRules.isJson(uri.path.orEmpty()) || fetched.isJson) {
+            val items = mutableListOf<ImportedSource>()
+            val urls = mutableSetOf<String>()
+            lateinit var scanner: JsonScanner
+            scanner = JsonScanner({ it }, { items.size >= maxItems }) { batch ->
+                var changed = false
+                var clipped = false
+                for (source in batch) {
+                    if (source.url in urls) continue
+                    if (items.size >= maxItems) { clipped = true; continue }
+                    urls.add(source.url); items.add(source); changed = true
+                }
+                if (changed) onUpdate(bounded(origin, items, scanner.partial || clipped, emptySet()))
+                clipped
+            }
+            scanner.scan(normalized, initial = fetched, required = true)
+            return bounded(origin, items, scanner.partial, emptySet()).also { onUpdate(it) }
+        }
         val type = content?.let(SourceRules::kind) ?: SourceKind.UNKNOWN
         val playlist = if (type == SourceKind.UNKNOWN && content != null &&
             (content.trimStart('\uFEFF', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", true) || uri.path.endsWith(".m3u", true) || uri.path.endsWith(".m3u8", true) || uri.path.endsWith(".txt", true)))
@@ -45,6 +63,29 @@ class SourceRepository(private val service: GithubSourceService) {
             content != null && SourceRules.isMarkdown(uri.path) -> SourceRules.referenceKinds(content)
             else -> emptySet()
         }
+        if (content != null && SourceRules.isMarkdown(uri.path)) {
+            val jsonLinks = SourceRules.markdownJsonLinks(content, URI(fetched.finalUrl))
+            if (jsonLinks.isNotEmpty()) {
+                val initial = bounded(origin, items, items.size > maxItems || fetched.truncated, references)
+                val found = initial.items.toMutableList()
+                val urls = found.mapTo(mutableSetOf()) { it.url }
+                lateinit var scanner: JsonScanner
+                scanner = JsonScanner({ it }, { found.size >= maxItems }) { batch ->
+                    var changed = false
+                    var clipped = false
+                    for (source in batch) {
+                        if (source.url in urls) continue
+                        if (found.size >= maxItems) { clipped = true; continue }
+                        urls.add(source.url); found.add(source); changed = true
+                    }
+                    if (changed) onUpdate(bounded(origin, found, initial.partial || scanner.partial || clipped, references))
+                    clipped
+                }
+                if (found.isNotEmpty()) onUpdate(initial)
+                for (link in jsonLinks) scanner.scan(link)
+                return bounded(origin, found, initial.partial || scanner.partial, references).also { onUpdate(it) }
+            }
+        }
         return bounded(origin, items, items.size > maxItems || fetched.truncated || playlist?.skipped == true, references).also { onUpdate(it) }
     }
 
@@ -58,6 +99,7 @@ class SourceRepository(private val service: GithubSourceService) {
             .addPathSegment(owner).addPathSegment(repo).build().toString().trimEnd('/') + "/"
         var branch: String? = null
         val results = mutableListOf<ImportedSource>()
+        val resultKeys = mutableSetOf<String>()
         val references = mutableSetOf<ReferenceKind>()
         val scannedDocuments = mutableListOf<String>()
         val scannedLists = mutableListOf<String>()
@@ -82,21 +124,37 @@ class SourceRepository(private val service: GithubSourceService) {
         fun isList(path: String): Boolean = listOf(".m3u", ".m3u8", ".mpd", ".txt").any { path.endsWith(it, true) }
         fun isTs(path: String): Boolean = path.endsWith(".ts", true)
         fun add(source: ImportedSource): Boolean {
-            if (results.any { canonical(it.url) == canonical(source.url) }) return false
+            val key = canonical(source.url)
+            if (key in resultKeys) return false
             if (results.size >= maxItems) { partial = true; return false }
+            resultKeys.add(key)
             results.add(source)
             return true
         }
         suspend fun publish() {
             onUpdate(bounded(SourceOrigin.GITHUB_REPOSITORY, results, partial, references.toSet(), rateLimited))
         }
+        val jsonScanner = JsonScanner(::canonical, { results.size >= maxItems }) { batch ->
+            var changed = false
+            var clipped = false
+            for (source in batch) {
+                if (canonical(source.url) in resultKeys) continue
+                if (results.size >= maxItems) { clipped = true; continue }
+                if (add(source)) changed = true
+            }
+            partial = partial || clipped
+            if (changed) publish()
+            clipped
+        }
         suspend fun processLinks(links: List<String>) {
             val lists = mutableListOf<String>()
             val transport = mutableListOf<String>()
+            val json = mutableListOf<String>()
             var added = false
             for (link in links) {
                 val path = URI(link).path.orEmpty()
                 when {
+                    SourceRules.isJson(path) -> json.add(link)
                     isList(path) -> lists.add(link)
                     isTs(path) -> transport.add(link)
                     else -> if (add(item(link, SourceKind.UNKNOWN))) added = true
@@ -132,6 +190,12 @@ class SourceRepository(private val service: GithubSourceService) {
                 } catch (e: IOException) { partial = true }
                 catch (e: retrofit2.HttpException) { partial = true; rateLimited = rateLimited || e.isGithubRateLimited() }
             }
+            for (url in json) {
+                coroutineContext.ensureActive()
+                if (results.size >= maxItems) { partial = true; break }
+                jsonScanner.scan(url)
+                partial = partial || jsonScanner.partial
+            }
         }
         suspend fun scanMarkdown(url: String) {
             if (seen(url, scannedDocuments)) return
@@ -141,6 +205,7 @@ class SourceRepository(private val service: GithubSourceService) {
             fetched.text?.let { text ->
                 references.addAll(SourceRules.referenceKinds(text))
                 processLinks(SourceRules.markdownLinks(text, URI(fetched.finalUrl)))
+                processLinks(SourceRules.markdownJsonLinks(text, URI(fetched.finalUrl)))
             }
         }
 
@@ -158,6 +223,8 @@ class SourceRepository(private val service: GithubSourceService) {
                     val defaultBranch = service.repository(owner, repo).defaultBranch?.takeIf { it.isNotBlank() }
                         ?: throw IOException("Missing default branch")
                     branch = defaultBranch
+                    resultKeys.clear()
+                    results.mapTo(resultKeys) { canonical(it.url) }
                     val tree = service.tree(owner, repo, defaultBranch)
                     val files = (tree.tree ?: throw IOException("Missing repository tree"))
                         .filter { it.type == "blob" && it.path != null }
@@ -173,7 +240,7 @@ class SourceRepository(private val service: GithubSourceService) {
                         catch (e: IOException) { partial = true }
                         catch (e: retrofit2.HttpException) { partial = true; rateLimited = rateLimited || e.isGithubRateLimited() }
                     }
-                    val remaining = files.filter { isList(it.path!!) || isTs(it.path!!) }
+                    val remaining = files.filter { isList(it.path!!) || isTs(it.path!!) || SourceRules.isJson(it.path!!) }
                         .map { raw(defaultBranch, it.path!!) }
                     processLinks(remaining)
                 } catch (e: IOException) {
@@ -194,7 +261,10 @@ class SourceRepository(private val service: GithubSourceService) {
                 try {
                     val page = fetch("https://github.com/$owner/$repo", true)
                     partial = partial || page.truncated
-                    page.text?.let { html -> processLinks(SourceRules.githubReadmeHtmlLinks(html, URI(page.finalUrl))) }
+                    page.text?.let { html ->
+                        processLinks(SourceRules.githubReadmeHtmlLinks(html, URI(page.finalUrl)))
+                        processLinks(SourceRules.githubReadmeHtmlJsonLinks(html, URI(page.finalUrl), URI(raw("HEAD", "README.md"))))
+                    }
                 } catch (e: IOException) { partial = true }
                 catch (e: retrofit2.HttpException) { partial = true }
                 true
@@ -222,7 +292,99 @@ class SourceRepository(private val service: GithubSourceService) {
     }
 
     private data class Fetched(val finalUrl: String, val text: String?, val truncated: Boolean,
-        val isHtml: Boolean = false, val isTransportStream: Boolean = false)
+        val isHtml: Boolean = false, val isTransportStream: Boolean = false, val isJson: Boolean = false)
+
+    /** One bounded scan is shared by all JSON references in the discovery session. */
+    private inner class JsonScanner(
+        private val canonical: (String) -> String,
+        private val full: () -> Boolean,
+        private val emit: suspend (List<ImportedSource>) -> Boolean,
+    ) {
+        private val configs = mutableSetOf<String>()
+        private val lists = mutableSetOf<String>()
+        var partial = false
+            private set
+
+        private suspend fun deliver(batch: List<ImportedSource>) {
+            if (emit(batch)) partial = true
+        }
+
+        suspend fun scan(url: String, depth: Int = 0, initial: Fetched? = null, required: Boolean = false) {
+            coroutineContext.ensureActive()
+            if (full()) { partial = true; return }
+            if (depth > 3) { partial = true; return }
+            val normalized = try {
+                if (initial != null) SourceRules.checkedUrl(url).toString()
+                else withTimeoutOrNull(5_000L) { normalizeGithubFile(SourceRules.checkedUrl(url)) }
+                    ?: run { partial = true; return }
+            }
+                catch (e: IOException) { if (required) throw e else { partial = true; return } }
+                catch (e: retrofit2.HttpException) { if (required) throw e else { partial = true; return } }
+                catch (e: IllegalArgumentException) { if (required) throw e else { partial = true; return } }
+                catch (e: java.net.URISyntaxException) { if (required) throw e else { partial = true; return } }
+            val key = canonical(normalized)
+            if (key in configs) return
+            if (configs.size >= 16) { partial = true; return }
+            configs.add(key)
+            try {
+                val fetched = initial ?: withTimeoutOrNull(5_000L) { fetch(normalized, true) }
+                if (fetched == null) { partial = true; return }
+                if (fetched.truncated) { partial = true; return }
+                val parsed = SourceJsonRules.parse(fetched.text ?: throw IOException("Missing JSON content"))
+                partial = partial || parsed.truncated
+                for (reference in parsed.references) {
+                    coroutineContext.ensureActive()
+                    if (full()) { partial = true; break }
+                    val target = try { SourceRules.checkedUrl(URI(fetched.finalUrl).resolve(reference.url).toString()) }
+                        catch (_: IllegalArgumentException) { partial = true; continue }
+                        catch (_: java.net.URISyntaxException) { partial = true; continue }
+                    val path = target.path.orEmpty()
+                    when {
+                        SourceRules.isJson(path) -> scan(target.toString(), depth + 1)
+                        !reference.live && !SourceRules.candidate(path) && path.substringAfterLast('/').contains('.').not() ->
+                            scan(target.toString(), depth + 1)
+                        reference.live || SourceRules.candidate(path) -> scanLive(target, reference.name)
+                        else -> partial = true
+                    }
+                }
+            } catch (e: IOException) {
+                if (required) throw e
+                partial = true
+            }
+        }
+
+        private suspend fun scanLive(uri: URI, name: String?) {
+            val url = uri.toString()
+            val path = uri.path.orEmpty()
+            val list = listOf(".m3u", ".m3u8", ".mpd", ".txt").any { path.endsWith(it, true) }
+            fun named(kind: SourceKind): ImportedSource = item(url, kind).let { source ->
+                source.copy(name = name?.trim()?.takeIf { it.isNotEmpty() }?.take(256) ?: source.name)
+            }
+            if (!list && SourceRules.candidate(path)) { deliver(listOf(named(SourceKind.MEDIA))); return }
+            if (!lists.add(canonical(url))) return
+            if (lists.size > 8) { partial = true; return }
+            try {
+                val fetched = withTimeoutOrNull(5_000L) { fetch(url, true) }
+                if (fetched == null || fetched.text == null) { partial = true; return }
+                partial = partial || fetched.truncated
+                val content = if (fetched.truncated) fetched.text.substringBeforeLast('\n', "") else fetched.text
+                val kind = SourceRules.kind(content)
+                if (kind != SourceKind.UNKNOWN) {
+                    deliver(listOf(named(kind)))
+                } else {
+                    val parsed = SourceRules.playlist(URI(fetched.finalUrl), content,
+                        txt = !content.trimStart('\uFEFF', ' ', '\n', '\r', '\t').startsWith("#EXTM3U", true))
+                    partial = partial || fetched.truncated || parsed.skipped
+                    if (parsed.items.isNotEmpty()) deliver(parsed.items.take(1))
+                    for (batch in parsed.items.drop(1).chunked(50)) {
+                        coroutineContext.ensureActive()
+                        if (full()) { partial = true; break }
+                        deliver(batch)
+                    }
+                }
+            } catch (_: IOException) { partial = true }
+        }
+    }
     private suspend fun fetch(initial: String, readText: Boolean, probeTransport: Boolean = false): Fetched {
         var current = initial
         val visited = mutableSetOf<String>()
@@ -257,7 +419,8 @@ class SourceRepository(private val service: GithubSourceService) {
                     }
                     val mime = body.contentType()?.toString()?.lowercase().orEmpty()
                     val path = URI(current).path.orEmpty()
-                    val textual = mime.startsWith("text/") || mime.contains("mpegurl") || mime.contains("dash+xml") || mime.contains("xml") || SourceRules.isMarkdown(path) || path.endsWith(".txt", true) || path.endsWith(".m3u", true) || path.endsWith(".m3u8", true) || path.endsWith(".mpd", true)
+                    val json = mime.contains("json") || SourceRules.isJson(path)
+                    val textual = mime.startsWith("text/") || mime.contains("mpegurl") || mime.contains("dash+xml") || mime.contains("xml") || json || SourceRules.isMarkdown(path) || path.endsWith(".txt", true) || path.endsWith(".m3u", true) || path.endsWith(".m3u8", true) || path.endsWith(".mpd", true)
                     if (!textual) return@withContext Fetched(current, null, false)
                     val stream = body.byteStream()
                     val output = java.io.ByteArrayOutputStream()
@@ -269,7 +432,7 @@ class SourceRepository(private val service: GithubSourceService) {
                         output.write(buffer, 0, n)
                     }
                     val bytes = output.toByteArray()
-                    Fetched(current, bytes.take(maxText).toByteArray().toString(Charsets.UTF_8), bytes.size > maxText, mime.startsWith("text/html"))
+                    Fetched(current, bytes.take(maxText).toByteArray().toString(Charsets.UTF_8), bytes.size > maxText, mime.startsWith("text/html"), isJson = json)
                 }
             } finally {
                 withContext(NonCancellable + Dispatchers.IO) { body?.close(); errorBody?.close() }
