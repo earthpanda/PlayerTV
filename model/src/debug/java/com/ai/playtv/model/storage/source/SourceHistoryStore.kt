@@ -140,6 +140,8 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
                 put("partial", entry.partial)
                 put("items", JSONArray().apply { entry.items.forEach { item -> put(JSONObject().apply {
                     put("id", item.id); put("name", item.name); put("url", item.url); put("kind", item.kind.name)
+                    item.channelId?.let { put("channelId", it) }
+                    item.logoUrl?.let { put("logoUrl", it) }
                 }) } })
             }) }
         })
@@ -159,7 +161,11 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
             val sources = (0 until items.length()).map { index ->
                 val item = items.getJSONObject(index)
                 val url = SourceRules.checkedUrl(item.getString("url")).toString()
-                ImportedSource(item.getString("id"), item.getString("name"), url, SourceKind.valueOf(item.getString("kind")))
+                val channelId = item.optString("channelId", "").takeIf { it.isNotBlank() && it.length <= 256 }
+                val logoUrl = item.optString("logoUrl", "").takeIf { it.isNotBlank() }?.let {
+                    runCatching { SourceRules.checkedUrl(it).toString() }.getOrNull()
+                }
+                ImportedSource(item.getString("id"), item.getString("name"), url, SourceKind.valueOf(item.getString("kind")), channelId, logoUrl)
             }
             result.add(SourceHistoryEntry(id, input, entry.getLong("lastUsedAtMs"), sources, entry.getBoolean("partial")))
         }

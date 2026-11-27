@@ -3,6 +3,7 @@
 
 
 - [test-sample](sample/test-sample.md)：模板技术预览，纯本地 3 页数据，演示 model Contract、MVI 与 AndroidX 列表；启用 refresh 时使用安全刷新容器。
+- [媒体资料与图片](media-metadata-artwork.md)：频道台标、影视海报与背景图的匹配、本地保存及删除；底层试验中，尚未接入页面。
 - [已保存条目搜索](source-search.md)：debug 入口中的本地搜索与播放跳转；待设备验收。
 
 

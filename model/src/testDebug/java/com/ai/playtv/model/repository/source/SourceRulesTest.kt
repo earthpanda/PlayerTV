@@ -36,4 +36,23 @@ class SourceRulesTest {
         packets[0] = 0x47; packets[188] = 0x47; packets[376] = 0x47
         assertTrue(SourceRules.isTransportStream(packets))
     }
+
+    @Test fun playlistPreservesValidArtworkMetadataWithoutLeakingToNextItem() {
+        val text = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="sample.id" tvg-logo="../logo.png?x=1,2",Example
+            https://example.org/one.m3u8
+            #EXTINF:-1 tvg-id='second.id' tvg-logo='http://example.org/logo.png',Second
+            https://example.org/two.m3u8
+            https://example.org/three.m3u8
+        """.trimIndent()
+        val items = SourceRules.playlist(URI("https://example.org/list/channels.m3u"), text).items
+        assertEquals(listOf("Example", "Second", "three.m3u8"), items.map { it.name })
+        assertEquals("sample.id", items[0].channelId)
+        assertEquals("https://example.org/logo.png?x=1,2", items[0].logoUrl)
+        assertEquals("second.id", items[1].channelId)
+        assertNull(items[1].logoUrl)
+        assertNull(items[2].channelId)
+        assertNull(items[2].logoUrl)
+    }
 }

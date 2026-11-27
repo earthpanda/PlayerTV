@@ -51,6 +51,7 @@ object SourceRules {
             if (candidate(uri.path.orEmpty()) || uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/")) uri.toString() else null
         }.distinct().toList()
     }
+
     /** JSON links and standalone filenames in a raw repository README. */
     fun markdownJsonLinks(text: String, base: URI): List<String> {
         val absolute = urlPattern.findAll(text).map { it.value.trimEnd('.', ',', ';') }
@@ -87,23 +88,48 @@ object SourceRules {
     data class ParsedPlaylist(val items: List<ImportedSource>, val skipped: Boolean)
     fun playlist(base: URI, content: String, txt: Boolean = false): ParsedPlaylist {
         var title: String? = null
+        var channelId: String? = null
+        var logoUrl: String? = null
         var skipped = false
         val items = buildList {
             for (line in content.lineSequence()) {
                 val value = line.trim().trimStart('\uFEFF').trim()
-                if (value.startsWith("#EXTINF:", true)) title = value.substringAfter(',', "").trim().ifEmpty { null }
+                if (value.startsWith("#EXTINF:", true)) {
+                    val comma = extinfComma(value)
+                    val attributes = if (comma >= 0) value.substring(0, comma) else value
+                    title = if (comma >= 0) value.substring(comma + 1).trim().ifEmpty { null } else null
+                    channelId = extinfAttribute(attributes, "tvg-id")?.takeIf { it.length <= 256 }
+                    logoUrl = extinfAttribute(attributes, "tvg-logo")?.let { candidate ->
+                        runCatching { checkedUrl(base.resolve(candidate).toString()).toString() }.getOrNull()
+                    }
+                }
                 else if (value.isNotEmpty() && !value.startsWith('#')) {
-                    if (value.contains(",#genre#", true)) { title = null; continue }
+                    if (value.contains(",#genre#", true)) { title = null; channelId = null; logoUrl = null; continue }
                     val isTxtChannel = value.contains(',') && !value.startsWith("http", true)
                     val target = if (isTxtChannel) value.substringAfter(',').trim() else value
-                    if (txt && !target.startsWith("https://", true) && !target.startsWith("http://", true)) { skipped = true; title = null; continue }
+                    if (txt && !target.startsWith("https://", true) && !target.startsWith("http://", true)) { skipped = true; title = null; channelId = null; logoUrl = null; continue }
                     if (isTxtChannel) title = value.substringBefore(',').trim().ifEmpty { null }
-                    val url = try { checkedUrl(base.resolve(target).toString()).toString() } catch (_: Exception) { skipped = true; title = null; continue }
-                    add(ImportedSource(url, title ?: URI(url).path.substringAfterLast('/').ifEmpty { URI(url).host }, url, SourceKind.UNKNOWN))
-                    title = null
+                    val url = try { checkedUrl(base.resolve(target).toString()).toString() } catch (_: Exception) { skipped = true; title = null; channelId = null; logoUrl = null; continue }
+                    add(ImportedSource(url, title ?: URI(url).path.substringAfterLast('/').ifEmpty { URI(url).host }, url, SourceKind.UNKNOWN, channelId, logoUrl))
+                    title = null; channelId = null; logoUrl = null
                 }
             }
         }.distinctBy { it.id }
         return ParsedPlaylist(items, skipped)
+    }
+
+    private fun extinfComma(value: String): Int {
+        var quote: Char? = null
+        value.forEachIndexed { index, character ->
+            if (character == '"' || character == '\'') {
+                if (quote == character) quote = null else if (quote == null) quote = character
+            } else if (character == ',' && quote == null) return index
+        }
+        return -1
+    }
+
+    private fun extinfAttribute(value: String, name: String): String? {
+        val pattern = Regex("(?:^|\\s)" + Regex.escape(name) + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s,]+))", RegexOption.IGNORE_CASE)
+        return pattern.find(value)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() }?.trim()?.ifEmpty { null }
     }
 }
