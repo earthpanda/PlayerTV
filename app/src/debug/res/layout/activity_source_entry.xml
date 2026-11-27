@@ -23,6 +23,22 @@
             android:autoSizeMinTextSize="9pt" android:autoSizeMaxTextSize="14pt" />
     </LinearLayout>
 
+    <FrameLayout android:id="@+id/search_tab" android:layout_width="0dp" android:layout_height="56pt"
+        android:layout_marginTop="22pt" android:background="@drawable/source_home_tab_background"
+        android:clickable="true" android:focusable="true" android:focusableInTouchMode="true"
+        android:contentDescription="@string/s_search_entry" app:layout_constraintStart_toStartOf="@id/sidebar"
+        app:layout_constraintEnd_toEndOf="@id/sidebar" app:layout_constraintTop_toTopOf="parent">
+        <ImageView android:layout_width="28pt" android:layout_height="28pt" android:layout_marginStart="14pt"
+            android:layout_gravity="start|center_vertical" android:duplicateParentState="true"
+            android:importantForAccessibility="no" android:src="@drawable/source_search_icon" />
+        <TextView android:layout_width="match_parent" android:layout_height="match_parent"
+            android:layout_marginStart="53pt" android:layout_marginEnd="8pt" android:gravity="center_vertical"
+            android:singleLine="true" android:duplicateParentState="true" android:importantForAccessibility="no"
+            android:text="@string/s_search_entry" android:textColor="@color/source_home_tab_text"
+            android:textSize="18pt" android:autoSizeTextType="uniform" android:autoSizeMinTextSize="10pt"
+            android:autoSizeMaxTextSize="18pt" />
+    </FrameLayout>
+
     <FrameLayout android:id="@+id/content" android:layout_width="0dp" android:layout_height="0dp"
         app:layout_constraintStart_toEndOf="@id/sidebar" app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent">

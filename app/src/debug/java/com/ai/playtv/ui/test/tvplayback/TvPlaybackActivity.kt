@@ -41,6 +41,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         const val EXTRA_PARTIAL = "source_partial"
         const val EXTRA_SESSION_ID = "source_session_id"
         const val EXTRA_HISTORY_ID = "source_history_id"
+        const val EXTRA_ITEM_ID = "source_item_id"
     }
     override val viewModelClass = TvPlaybackViewModel::class.java
     override fun createViewModelFactory(): ViewModelProvider.Factory =
@@ -58,7 +59,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             val initial = session?.state?.value?.result?.items ?: sources
             TvPlaybackViewModel(applicationContext, SourceRepository(network.service(GithubSourceService::class.java)), network,
                 initial, session?.state?.value?.result?.partial ?: intent.getBooleanExtra(EXTRA_PARTIAL, false),
-                owner, sessionId, session, app.sourceHistory, intent.getStringExtra(EXTRA_HISTORY_ID))
+                owner, sessionId, session, app.sourceHistory, intent.getStringExtra(EXTRA_HISTORY_ID),
+                intent.getStringExtra(EXTRA_ITEM_ID))
         }
 
     private val handler = Handler(Looper.getMainLooper())

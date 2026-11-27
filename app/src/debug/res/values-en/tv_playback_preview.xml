@@ -35,7 +35,7 @@
     <string name="s_tv_import_loading">Discovering?</string>
     <string name="s_tv_import_failed">Could not parse the address; check the URL or network</string>
     <string name="s_tv_import_empty">No playback candidates found</string>
-    <string name="s_tv_import_partial">Partial results: over 100 items or unsupported addresses</string>
+    <string name="s_tv_import_partial">Partial results: over 1000 items, unsupported addresses, or fetch failures</string>
     <string name="s_tv_entry_title">Enter a source</string>
     <string name="s_tv_entry_start">Discover and play</string>
     <string name="s_tv_home_history">History</string>

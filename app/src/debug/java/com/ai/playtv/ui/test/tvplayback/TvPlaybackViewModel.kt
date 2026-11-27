@@ -32,7 +32,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     private val network: NetworkDependencies, private val initialSources: List<ImportedSource>, partial: Boolean,
     private val discoveryOwner: SourceDiscoveryOwner? = null, private val sessionId: String? = null,
     private val session: SourceDiscoverySession? = null, private val history: SourceHistoryStore? = null,
-    private val historyId: String? = null) :
+    private val historyId: String? = null, private val initialItemId: String? = null) :
     BaseMviViewModel<TvPlaybackState, TvPlaybackEvent, TvPlaybackEffect>(TvPlaybackState(
         imported = initialSources, importPartial = partial,
         activeId = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.id,
@@ -72,9 +72,10 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     history?.find(id) ?: throw IOException("History unavailable")
                 }
                 val startSources = restored?.items ?: initialSources
-                val firstSource = startSources.firstOrNull {
-                    BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM
-                } ?: throw IOException("Source unavailable")
+                val playable = startSources.filter { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }
+                val firstSource = if (initialItemId == null) playable.firstOrNull()
+                    else playable.firstOrNull { it.id == initialItemId }
+                if (firstSource == null) throw IOException("Source unavailable")
                 if (restored != null) setState { copy(imported = restored.items, importPartial = restored.partial,
                     activeId = firstSource.id, activeName = firstSource.name) }
                 val created = AndroidPlayer.create(appContext)

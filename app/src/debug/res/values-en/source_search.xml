@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="s_search_entry">Search</string>
+    <string name="s_search_hint">Search saved channels and videos</string>
+    <string name="s_search_clear">Clear</string>
+    <string name="s_search_delete">Delete</string>
+    <string name="s_search_tips">Enter a name or its initials</string>
+    <string name="s_search_default">Enter a name to search</string>
+    <string name="s_search_searching">Searching…</string>
+    <string name="s_search_empty_sources">No saved channels or videos</string>
+    <string name="s_search_empty_results">No matching content</string>
+    <string name="s_search_failed">Could not read the record or content is unavailable</string>
+    <string name="s_search_count">%1$d results</string>
+    <string name="s_search_partial">Some source records are incomplete; results may be missing</string>
+</resources>

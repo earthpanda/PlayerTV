@@ -26,6 +26,7 @@ import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.model.contract.sourceentry.*
 import com.ai.playtv.ui.BaseMviActivity
 import com.ai.playtv.ui.test.tvplayback.TvPlaybackActivity
+import com.ai.playtv.ui.test.sourcesearch.SourceSearchActivity
 import com.ai.playtv.view.loading.createOperationLoadingController
 
 class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEntryState, SourceEntryEvent,
@@ -61,7 +62,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
     private var repositorySuggestions = emptyList<String>()
     private val focusListener = ViewTreeObserver.OnGlobalFocusChangeListener { _, focused ->
         when {
-            isInside(focused, binding.sidebar) -> setSidebarExpanded(true)
+            isInside(focused, binding.sidebar) || focused === binding.searchTab -> setSidebarExpanded(true)
             isInside(focused, binding.content) -> setSidebarExpanded(false)
         }
     }
@@ -110,6 +111,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         binding.sourceTab.setOnFocusChangeListener { _, focused -> if (focused && !updatingTab) selectTab(HomeTab.SOURCES) }
         binding.historyTab.setOnClickListener { selectTab(HomeTab.HISTORY); binding.historyTab.requestFocusFromTouch() }
         binding.sourceTab.setOnClickListener { selectTab(HomeTab.SOURCES); binding.sourceTab.requestFocusFromTouch() }
+        binding.searchTab.setOnClickListener { startActivity(Intent(this, SourceSearchActivity::class.java)) }
         binding.addSource.setOnClickListener { selectTab(HomeTab.SOURCES); binding.sourceUrl.requestFocus() }
         binding.submit.setOnClickListener { viewModel.onEvent(SourceEntryEvent.Submit(binding.sourceUrl.text.toString())) }
         selectTab(selectedTab)
@@ -130,8 +132,10 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
                     if (event.repeatCount == 0) {
-                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) binding.historyTab.requestFocus()
-                        else binding.sourceTab.requestFocus()
+                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                            if (current === binding.historyTab) binding.searchTab.requestFocus()
+                            else binding.historyTab.requestFocus()
+                        } else binding.sourceTab.requestFocus()
                     }
                     handledKey = event.keyCode
                     return true
@@ -139,6 +143,18 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
                 KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER,
                 KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                     if (event.repeatCount == 0) enterSelectedTab()
+                    handledKey = event.keyCode
+                    return true
+                }
+            }
+        } else if (current === binding.searchTab) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (event.repeatCount == 0) currentTabView().requestFocus()
+                    handledKey = event.keyCode
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     handledKey = event.keyCode
                     return true
                 }

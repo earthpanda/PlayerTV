@@ -2,6 +2,7 @@ package com.ai.playtv.model.storage.source
 
 import android.util.AtomicFile
 import com.ai.playtv.model.bean.domain.source.ImportedSource
+import com.ai.playtv.model.bean.domain.source.MAX_IMPORTED_SOURCES
 import com.ai.playtv.model.bean.domain.source.SourceDiscovery
 import com.ai.playtv.model.bean.domain.source.SourceHistoryEntry
 import com.ai.playtv.model.bean.domain.source.SourceKind
@@ -154,7 +155,7 @@ class SourceHistoryStore(private val directory: suspend () -> File) {
             val id = entry.getString("id")
             require(id == identity(input) && result.none { it.id == id }) { "Invalid history identity" }
             val items = entry.getJSONArray("items")
-            require(items.length() in 1..100) { "Invalid history candidates" }
+            require(items.length() in 1..MAX_IMPORTED_SOURCES) { "Invalid history candidates" }
             val sources = (0 until items.length()).map { index ->
                 val item = items.getJSONObject(index)
                 val url = SourceRules.checkedUrl(item.getString("url")).toString()

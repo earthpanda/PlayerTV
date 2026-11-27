@@ -50,7 +50,7 @@
     <string name="s_tv_import_loading">正在解析…</string>
     <string name="s_tv_import_failed">解析失败，请检查地址或网络</string>
     <string name="s_tv_import_empty">未发现播放候选</string>
-    <string name="s_tv_import_partial">仅显示部分候选，可能超过 100 项或包含未支持的地址</string>
+    <string name="s_tv_import_partial">仅显示部分候选，可能超过 1000 项，或部分地址不支持、获取失败</string>
     <string name="s_tv_entry_title">输入播放来源</string>
     <string name="s_tv_entry_start">解析并播放</string>
     <string name="s_tv_home_history">历史记录</string>

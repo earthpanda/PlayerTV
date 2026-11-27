@@ -15,7 +15,7 @@ import kotlin.coroutines.coroutineContext
 /** Page-scoped, bounded discovery. Results are candidates, not playback guarantees. */
 class SourceRepository(private val service: GithubSourceService) {
     private val maxText = 1024 * 1024
-    private val maxItems = 100
+    private val maxItems = MAX_IMPORTED_SOURCES
     private val maxMarkdown = 12
 
     suspend fun discover(input: String, onUpdate: suspend (SourceDiscovery) -> Unit = {}): SourceDiscovery {
@@ -284,12 +284,9 @@ class SourceRepository(private val service: GithubSourceService) {
     private fun bounded(origin: SourceOrigin, items: List<ImportedSource>, incomplete: Boolean, references: Set<ReferenceKind>,
         rateLimited: Boolean = false): SourceDiscovery {
         val kept = mutableListOf<ImportedSource>()
-        var size = 0
         for (item in items) {
-            val next = item.url.length + item.name.length
-            if (kept.size >= maxItems || size + next > 100_000) break
+            if (kept.size >= maxItems) break
             kept.add(item.copy(name = item.name.take(256)))
-            size += next
         }
         return SourceDiscovery(origin, kept, incomplete || kept.size < items.size, references, rateLimited)
     }

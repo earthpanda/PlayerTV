@@ -70,16 +70,29 @@ class SourceRepositoryTest {
         assertEquals(1, hls.items.size)
         assertEquals(SourceKind.HLS, hls.items.single().kind)
     }
-    @Test fun playlistReturnsFirstHundredAndMarksPartial() = runBlocking {
+    @Test fun playlistKeepsMoreThanHundredAndLimitsAtOneThousand() = runBlocking {
         val fake = FakeService()
-        val text = "#EXTM3U\n" + (1..105).joinToString("\n") { "#EXTINF:-1,Channel $it\nhttps://tv.example/$it.m3u8" }
-        fake.bodies["https://example.org/list"] = "text/plain" to text
-        val result = SourceRepository(fake).discover("https://example.org/list")
-        assertEquals(100, result.items.size)
-        assertEquals("Channel 1", result.items.first().name)
-        assertEquals("Channel 100", result.items.last().name)
-        assertTrue(result.partial)
+        val repo = SourceRepository(fake)
+        val longPath = "x".repeat(120)
+        fun playlist(count: Int) = "#EXTM3U\n" + (1..count).joinToString("\n") {
+            "#EXTINF:-1,Channel $it\nhttps://tv.example/$longPath/$it.m3u8"
+        }
+        fake.bodies["https://example.org/list"] = "text/plain" to playlist(105)
+        val small = repo.discover("https://example.org/list")
+        assertEquals(105, small.items.size)
+        assertFalse(small.partial)
+        fake.bodies["https://example.org/list"] = "text/plain" to playlist(1000)
+        val exact = repo.discover("https://example.org/list")
+        assertEquals(1000, exact.items.size)
+        assertFalse(exact.partial)
+        fake.bodies["https://example.org/list"] = "text/plain" to playlist(1005)
+        val overflow = repo.discover("https://example.org/list")
+        assertEquals(1000, overflow.items.size)
+        assertEquals("Channel 1", overflow.items.first().name)
+        assertEquals("Channel 1000", overflow.items.last().name)
+        assertTrue(overflow.partial)
     }
+
     @Test fun repositoryCombinesMediaAndReadmeAttachmentsAndReportsTruncation() = runBlocking {
         val fake = FakeService()
         fake.treeResult = GithubTreeDto(true, listOf(GithubTreeEntryDto("app/utils.ts", "blob"), GithubTreeEntryDto("docs/demo.mp4", "blob"), GithubTreeEntryDto("README.md", "blob")))

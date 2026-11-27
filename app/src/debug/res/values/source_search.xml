@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="s_search_entry">搜索</string>
+    <string name="s_search_hint">搜索已保存的频道和影片</string>
+    <string name="s_search_clear">清空</string>
+    <string name="s_search_delete">删除</string>
+    <string name="s_search_tips">输入名称、拼音或首字母</string>
+    <string name="s_search_default">输入名称开始搜索</string>
+    <string name="s_search_searching">正在搜索…</string>
+    <string name="s_search_empty_sources">暂无已保存的频道或影片</string>
+    <string name="s_search_empty_results">没有找到匹配的内容</string>
+    <string name="s_search_failed">读取记录失败或内容已不可用</string>
+    <string name="s_search_count">找到 %1$d 个结果</string>
+    <string name="s_search_partial">部分播放源的记录不完整，搜索结果可能不全</string>
+</resources>

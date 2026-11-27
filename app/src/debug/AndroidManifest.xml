@@ -3,6 +3,7 @@
     <application android:name=".SourcePreviewApplication" tools:replace="android:name">
         <activity android:name=".ui.test.sample.SampleActivity" tools:node="remove" />
         <activity android:name=".ui.test.tvplayback.TvPlaybackActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ui.test.sourcesearch.SourceSearchActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".ui.test.sourceentry.SourceEntryActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
