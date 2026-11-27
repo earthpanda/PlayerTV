@@ -34,7 +34,8 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     private val adapter = SourceSearchAdapter({ viewModel.onEvent(SourceSearchEvent.Open(it)) },
         { (lastKey ?: keyAt(9))?.requestFocus() }, ::maybeLoadMore)
     override fun createViewModelFactory(): ViewModelProvider.Factory = viewModelFactory(viewModelClass) {
-        SourceSearchViewModel((application as SourcePreviewApplication).sourceHistory, restoredQuery)
+        val app = application as SourcePreviewApplication
+        SourceSearchViewModel(app.sourceHistory, app.sourceSearchIndex, restoredQuery)
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         restoredQuery = savedInstanceState?.getString("query").orEmpty()

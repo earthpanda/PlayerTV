@@ -7,9 +7,12 @@ plugins {
 android {
     namespace = "com.ai.playtv.model"
     compileSdk = 35
+    useLibrary("android.test.runner", false)
+    useLibrary("android.test.base", false)
     defaultConfig {
         minSdk = 26
         consumerProguardFiles("consumer-rules.pro")
+        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

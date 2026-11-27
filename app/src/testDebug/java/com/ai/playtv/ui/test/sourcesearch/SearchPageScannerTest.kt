@@ -5,6 +5,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SearchPageScannerTest {
+    @Test fun priorityIsFrozenAcrossPagesAndPreservesDuplicatesAndGroupOrder() = runBlocking {
+        val ready = mutableSetOf("b", "d")
+        val groups = groupSearchItems(listOf("a", "b", "c", "b", "d")) { it in ready }
+        val first = scanSearchPage(groups, SearchCursor(), 2) { _, item -> item }
+        ready.add("a")
+        val second = scanSearchPage(groups, first.cursor, 2) { _, item -> item }
+        val third = scanSearchPage(groups, second.cursor, 2) { _, item -> item }
+        assertEquals(listOf("b", "b"), first.rows)
+        assertEquals(listOf("d", "a"), second.rows)
+        assertEquals(listOf("c"), third.rows)
+        assertFalse(third.hasMore)
+    }
+
     @Test fun pagesContinueAcrossSourcesWithoutScanningAheadOrDroppingDuplicates() = runBlocking {
         val sources = listOf((1..12).toList(), emptyList(), (13..45).toList(), listOf(45))
         var examined = 0
