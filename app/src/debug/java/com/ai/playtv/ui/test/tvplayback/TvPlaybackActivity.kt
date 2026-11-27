@@ -171,6 +171,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         val wasPlaying = isPlayingForControls(this.state)
         val previousSourceId = this.state.activeId
         this.state = state
+        if (state.sourceResolving || previousSourceId != state.activeId) previewMs = null
         val pending = pendingSeek
         if (pending != null && (state.activeId != pending.sourceId || state.sourceResolving ||
                 state.phase in setOf("FAILED", "ENDED", "IDLE", "RELEASING", "RELEASED") ||
@@ -228,14 +229,14 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
 
     private fun renderProgress() {
-        val duration = state.durationMs?.takeIf { it > 0 } ?: pendingSeek?.durationMs
+        val duration = if (state.sourceResolving) null else state.durationMs?.takeIf { it > 0 } ?: pendingSeek?.durationMs
         val position = previewMs ?: pendingSeek?.targetMs ?: state.positionMs
         binding.progress.durationMs = duration
-        binding.progress.canSeek = state.seekable && duration != null && duration > 0
-        binding.progress.positionMs = position
-        binding.elapsed.text = time(position)
-        binding.duration.text = duration?.takeIf { it > 0 }?.let(::time)
-            ?: getString(R.string.s_tv_preview_unknown_time)
+        binding.progress.canSeek = !state.sourceResolving && state.seekable && duration != null
+        binding.progress.positionMs = if (duration != null) position else 0L
+        val unknown = getString(R.string.s_tv_preview_unknown_time)
+        binding.elapsed.text = if (duration != null) time(position) else unknown
+        binding.duration.text = duration?.let(::time) ?: unknown
     }
 
     private fun showControls(scheduleHide: Boolean = true) {
@@ -393,7 +394,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
 
     private fun commitSeek(target: Long?) {
-        if (target != null && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.activeId) {
+        if (target != null && !state.sourceResolving && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.activeId) {
             val duration = state.durationMs ?: return
             val oldPending = pendingSeek
             pendingSeek = PendingSeek(state.activeId, target.coerceIn(0L, duration), state.positionMs, duration,
