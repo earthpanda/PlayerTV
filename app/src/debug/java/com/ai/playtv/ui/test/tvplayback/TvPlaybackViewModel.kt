@@ -135,6 +135,10 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     (requestedSource ?: importedSource)?.let { selectImported(it) }
                 else -> Unit
             }
+            is TvPlaybackEvent.SetPlaying -> {
+                if (event.playing && !background) report(activePlayer.play())
+                else if (!event.playing) report(activePlayer.pause())
+            }
             is TvPlaybackEvent.Seek -> {
                 val snapshot = activePlayer.state.value
                 if (snapshot.seekable && snapshot.durationMs != null) {

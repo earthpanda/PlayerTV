@@ -17,6 +17,7 @@ data class TvPlaybackState(
 ) : UiState
 sealed interface TvPlaybackEvent : UiEvent {
     data object Toggle : TvPlaybackEvent
+    data class SetPlaying(val playing: Boolean) : TvPlaybackEvent
     data class Seek(val deltaMs: Long) : TvPlaybackEvent
     data class SeekTo(val positionMs: Long) : TvPlaybackEvent
     data class SelectImported(val source: ImportedSource) : TvPlaybackEvent

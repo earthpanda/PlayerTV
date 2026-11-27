@@ -66,6 +66,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     private lateinit var messages: MessageController
     private var state = TvPlaybackState()
     private var previewMs: Long? = null
+    private var pendingSeek: PendingSeek? = null
     private var gestureSource: String? = null
     private var downX = 0f
     private var downY = 0f
@@ -85,6 +86,11 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             binding.bottomControls.visibility = View.GONE
         }
     }
+    private val seekTimeout = Runnable {
+        pendingSeek = null
+        render(state)
+        scheduleHide()
+    }
     private val seekStep = object : Runnable {
         override fun run() {
             val key = heldKey ?: return
@@ -92,7 +98,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             val duration = state.durationMs
             if (state.seekable && duration != null && duration > 0 && gestureSource == state.activeId) {
                 val delta = if (key == KeyEvent.KEYCODE_DPAD_RIGHT) 10_000L else -10_000L
-                previewMs = TvPreviewSeekMath.step(previewMs ?: state.positionMs, delta, duration)
+                previewMs = TvPreviewSeekMath.step(previewMs ?: pendingSeek?.targetMs ?: state.positionMs, delta, duration)
                 renderProgress()
             } else {
                 binding.hint.setText(R.string.s_tv_preview_seek_unavailable)
@@ -122,7 +128,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         }
         binding.video.holder.addCallback(this)
         binding.video.setOnTouchListener { _, event -> onVideoTouch(event) }
-        binding.toggle.setOnClickListener { showControls(); viewModel.onEvent(TvPlaybackEvent.Toggle) }
+        binding.toggle.setOnClickListener { showControls(); togglePlayback() }
         onBackPressedDispatcher.addCallback(this, playlistBack)
         binding.playlistOverlay.setOnClickListener { closePlaylist() }
         binding.playlist.setNumColumns(1)
@@ -148,6 +154,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     override fun onStop() {
         handler.removeCallbacks(hideControls)
         handler.removeCallbacks(seekStep)
+        clearPendingSeek()
         heldKey = null
         videoTouchActive = false
         progressTracking = false
@@ -164,6 +171,14 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         val wasPlaying = isPlayingForControls(this.state)
         val previousSourceId = this.state.activeId
         this.state = state
+        val pending = pendingSeek
+        if (pending != null && (state.activeId != pending.sourceId || state.sourceResolving ||
+                state.phase in setOf("FAILED", "ENDED", "IDLE", "RELEASING", "RELEASED") ||
+                (state.error != null && state.error != pending.initialError) ||
+                (pending.appearsReached(state.positionMs, state.durationMs) &&
+                    state.phase == (if (pending.playing) "PLAYING" else "PAUSED")))) {
+            clearPendingSeek()
+        }
         val isPlaying = isPlayingForControls(state)
         if (!isPlaying) {
             handler.removeCallbacks(hideControls)
@@ -175,7 +190,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.audioWithoutVideo.visibility = if (state.audioWithoutVideo && !state.sourceResolving && state.error == null)
             View.VISIBLE else View.GONE
         binding.buffering.text = getString(R.string.s_tv_preview_buffer_percent, state.bufferedPercent.coerceIn(0, 100))
-        val status = getString(when (state.phase) {
+        val shownPhase = displayedPhase(state)
+        val status = getString(when (shownPhase) {
             "INITIALIZING" -> R.string.s_tv_preview_initializing
             "IDLE" -> R.string.s_tv_preview_idle
             "PREPARING" -> R.string.s_tv_preview_preparing
@@ -192,9 +208,9 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             getString(R.string.s_tv_preview_status_with_error, status)
         } else status
         val sourceName = state.activeName ?: getString(R.string.s_tv_preview_no_source)
-        binding.title.text = getString(if (state.phase == "PLAYING") R.string.s_tv_preview_now_playing
+        binding.title.text = getString(if (shownPhase == "PLAYING") R.string.s_tv_preview_now_playing
             else R.string.s_tv_preview_source_title, sourceName)
-        binding.toggle.setText(if (state.phase in setOf("PLAYING", "BUFFERING", "PREPARING"))
+        binding.toggle.setText(if (shownPhase in setOf("PLAYING", "BUFFERING", "PREPARING"))
             R.string.s_tv_preview_pause else R.string.s_tv_preview_play)
         sourceAdapter.submitList(state.imported.map {
             TvPreviewSourceRow(it, it.id == state.activeId, it.id == state.activeId && state.phase == "PLAYING")
@@ -208,14 +224,16 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             else -> ""
         }
         renderProgress()
+        if (pending != null && pendingSeek == null) scheduleHide()
     }
 
     private fun renderProgress() {
-        val duration = state.durationMs
+        val duration = state.durationMs?.takeIf { it > 0 } ?: pendingSeek?.durationMs
+        val position = previewMs ?: pendingSeek?.targetMs ?: state.positionMs
         binding.progress.durationMs = duration
         binding.progress.canSeek = state.seekable && duration != null && duration > 0
-        binding.progress.positionMs = previewMs ?: state.positionMs
-        binding.elapsed.text = time(previewMs ?: state.positionMs)
+        binding.progress.positionMs = position
+        binding.elapsed.text = time(position)
         binding.duration.text = duration?.takeIf { it > 0 }?.let(::time)
             ?: getString(R.string.s_tv_preview_unknown_time)
     }
@@ -233,11 +251,35 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         if (canHideControls()) handler.postDelayed(hideControls, 5_000L)
     }
 
+    private fun displayedPhase(state: TvPlaybackState): String {
+        val pending = pendingSeek
+        return if (pending != null && pending.sourceId == state.activeId && !state.sourceResolving &&
+            state.phase in setOf("PLAYING", "PAUSED", "BUFFERING")) {
+            if (pending.playing) "PLAYING" else "PAUSED"
+        } else state.phase
+    }
+
     private fun isPlayingForControls(state: TvPlaybackState): Boolean =
-        state.phase == "PLAYING" && !state.sourceResolving && state.error == null
+        displayedPhase(state) == "PLAYING" && !state.sourceResolving && state.error == null
 
     private fun canHideControls(): Boolean = isPlayingForControls(state) &&
-        binding.playlistOverlay.visibility != View.VISIBLE && heldKey == null && !videoTouchActive && !progressTracking
+        binding.playlistOverlay.visibility != View.VISIBLE && heldKey == null && !videoTouchActive && !progressTracking && pendingSeek == null
+
+    private fun togglePlayback() {
+        val pending = pendingSeek
+        if (pending == null) viewModel.onEvent(TvPlaybackEvent.Toggle)
+        else {
+            val playing = !pending.playing
+            pendingSeek = pending.copy(playing = playing)
+            viewModel.onEvent(TvPlaybackEvent.SetPlaying(playing))
+            render(state)
+        }
+    }
+
+    private fun clearPendingSeek() {
+        handler.removeCallbacks(seekTimeout)
+        pendingSeek = null
+    }
 
     private fun openPlaylist() {
         handler.removeCallbacks(hideControls)
@@ -278,7 +320,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                     showControls()
-                    viewModel.onEvent(TvPlaybackEvent.Toggle)
+                    togglePlayback()
                 }
                 return true
             }
@@ -310,8 +352,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             MotionEvent.ACTION_DOWN -> {
                 videoTouchActive = true
                 downX = event.x; downY = event.y; touchMode = 0
-                gestureStartMs = state.positionMs
-                gestureDurationMs = state.durationMs ?: 0L
+                gestureStartMs = pendingSeek?.targetMs ?: state.positionMs
+                gestureDurationMs = state.durationMs ?: pendingSeek?.durationMs ?: 0L
                 gestureSource = state.activeId
                 showControls(scheduleHide = false)
                 return true
@@ -352,6 +394,12 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
 
     private fun commitSeek(target: Long?) {
         if (target != null && state.seekable && (state.durationMs ?: 0L) > 0 && gestureSource == state.activeId) {
+            val duration = state.durationMs ?: return
+            val oldPending = pendingSeek
+            pendingSeek = PendingSeek(state.activeId, target.coerceIn(0L, duration), state.positionMs, duration,
+                state.error, oldPending?.playing ?: (state.phase in setOf("PLAYING", "BUFFERING", "PREPARING")))
+            handler.removeCallbacks(seekTimeout)
+            handler.postDelayed(seekTimeout, 15_000L)
             viewModel.onEvent(TvPlaybackEvent.SeekTo(target))
         }
     }
