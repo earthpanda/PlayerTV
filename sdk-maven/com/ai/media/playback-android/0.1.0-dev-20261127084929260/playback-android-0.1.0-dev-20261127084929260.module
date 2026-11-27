@@ -3,7 +3,7 @@
   "component": {
     "group": "com.ai.media",
     "module": "playback-android",
-    "version": "0.1.0-dev-20261127013305384",
+    "version": "0.1.0-dev-20261127084929260",
     "attributes": {
       "org.gradle.status": "release"
     }
@@ -40,13 +40,13 @@
       ],
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127013305384.aar",
-          "url": "playback-android-0.1.0-dev-20261127013305384.aar",
-          "size": 32532130,
-          "sha512": "b0e065e3d103de00d3e0a7238f9057e148f2844ec63da0b0fecb9c9d685c795c472b622dc9d49a67dc38c3bca30fc4c894cf72131f33faeb44a9d1a4a6f0cd9f",
-          "sha256": "14ee8cad58708c658ce4d323d153f00c35d6c845ff40991a51ae52c97302ea81",
-          "sha1": "cfe492a6f10a78bc6af7a4044ec78bcfb410327c",
-          "md5": "6c75a8303e134c3790311d9aebbb6c4c"
+          "name": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "url": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "size": 32532573,
+          "sha512": "753d4412b10870d3486368c0c11c28e1fa452ef909e20507e28f7235c5770a92d21467dafa6f0a76614c27f10aa1458000b0e0d9c1b5d95c2c1c3cbb22204fe9",
+          "sha256": "44cdeeec63531260748e7d2946304115a4215e2ed92a718ceeb6469b36cbbfbe",
+          "sha1": "e289bc54384e22a5ba1c58da6b634ca0402d3203",
+          "md5": "81646164a5a30b4a4853457ee5618afb"
         }
       ]
     },
@@ -83,13 +83,13 @@
       ],
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127013305384.aar",
-          "url": "playback-android-0.1.0-dev-20261127013305384.aar",
-          "size": 32532130,
-          "sha512": "b0e065e3d103de00d3e0a7238f9057e148f2844ec63da0b0fecb9c9d685c795c472b622dc9d49a67dc38c3bca30fc4c894cf72131f33faeb44a9d1a4a6f0cd9f",
-          "sha256": "14ee8cad58708c658ce4d323d153f00c35d6c845ff40991a51ae52c97302ea81",
-          "sha1": "cfe492a6f10a78bc6af7a4044ec78bcfb410327c",
-          "md5": "6c75a8303e134c3790311d9aebbb6c4c"
+          "name": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "url": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "size": 32532573,
+          "sha512": "753d4412b10870d3486368c0c11c28e1fa452ef909e20507e28f7235c5770a92d21467dafa6f0a76614c27f10aa1458000b0e0d9c1b5d95c2c1c3cbb22204fe9",
+          "sha256": "44cdeeec63531260748e7d2946304115a4215e2ed92a718ceeb6469b36cbbfbe",
+          "sha1": "e289bc54384e22a5ba1c58da6b634ca0402d3203",
+          "md5": "81646164a5a30b4a4853457ee5618afb"
         }
       ]
     },
@@ -103,8 +103,8 @@
       },
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127013305384-sources.jar",
-          "url": "playback-android-0.1.0-dev-20261127013305384-sources.jar",
+          "name": "playback-android-0.1.0-dev-20261127084929260-sources.jar",
+          "url": "playback-android-0.1.0-dev-20261127084929260-sources.jar",
           "size": 51888,
           "sha512": "0c6fd7f460b3f33d6b59e0ead5b6d44527b83205ff60c41df224b83b73d2fa0fa53332d6f1fea1e559d1e961cb459a93b673de40b26eb74c567ae8928a6e002e",
           "sha256": "f8b53bb8cbb1e2b88fa5bbd97d5c59ed8a24a27ceb021455f3e6e8a85845a635",

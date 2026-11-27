@@ -7,8 +7,11 @@ import com.ai.playtv.model.repository.source.SourceRules
 import com.google.gson.Gson
 import com.google.gson.stream.JsonReader
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.FilterInputStream
@@ -24,7 +27,14 @@ class ArtworkRepository(
     private val service: ArtworkHttpService,
     private val gson: Gson = Gson(),
     private val movieBearerToken: String? = null,
+    private val cacheChannelIndexes: Boolean = false,
+    private val monotonicNanos: () -> Long = System::nanoTime,
 ) {
+    private val channelIndexMutex = Mutex()
+    private var cachedNames: ChannelNames? = null
+    private var cachedLogos: Map<String, LogoChoices>? = null
+    private var channelRetryAt: Long? = null
+
     suspend fun lookup(query: ArtworkQuery): ArtworkLookupResult {
         require(query.title.length <= 256 && (query.channelId?.length ?: 0) <= 256)
         return when (query.type) {
@@ -37,46 +47,112 @@ class ArtworkRepository(
 
     private suspend fun channel(query: ArtworkQuery): ArtworkLookupResult {
         safeUrl(query.playlistLogoUrl)?.let { return ArtworkLookupResult.Found(ArtworkCandidate(smallUrl = it, provider = "playlist")) }
-        val id = query.channelId?.trim()?.takeIf { it.isNotEmpty() } ?: run {
-            val name = normalized(query.title).takeIf { it.isNotEmpty() } ?: return ArtworkLookupResult.NoMatch
-            val ids = readJson(CHANNEL_INDEX, MAX_INDEX_BYTES) { reader ->
-                val found = mutableSetOf<String>()
-                reader.beginArray()
-                while (reader.hasNext()) {
-                    coroutineContext.ensureActive()
-                    val channel = gson.fromJson<ChannelDto>(reader, ChannelDto::class.java)
-                    if ((listOfNotNull(channel.name) + channel.alternativeNames.orEmpty()).any { normalized(it) == name }) {
-                        channel.id?.trim()?.takeIf { it.isNotEmpty() }?.let(found::add)
-                    }
-                }
-                reader.endArray()
-                found
-            }
-            when (ids.size) {
-                0 -> return ArtworkLookupResult.NoMatch
-                1 -> ids.single()
-                else -> return ArtworkLookupResult.Ambiguous
-            }
+        val sourceId = query.channelId?.trim()?.takeIf { it.isNotEmpty() }
+        if (sourceId != null) {
+            val byId = channelLogo(sourceId)
+            if (byId != ArtworkLookupResult.NoMatch) return byId
         }
-        val matches = readJson(LOGO_INDEX, MAX_INDEX_BYTES) { reader ->
-            val found = mutableListOf<ChannelLogoDto>()
+        val name = normalized(query.title).takeIf { it.isNotEmpty() } ?: return ArtworkLookupResult.NoMatch
+        val names = channelNames(name, sourceId)
+        if (sourceId != null && sourceId in names.knownIds) return ArtworkLookupResult.NoMatch
+        val ids = names.byName[name].orEmpty()
+        val matchedId = when (ids.size) {
+            0 -> return ArtworkLookupResult.NoMatch
+            1 -> ids.single()
+            else -> return ArtworkLookupResult.Ambiguous
+        }
+        if (matchedId == sourceId) return ArtworkLookupResult.NoMatch
+        return channelLogo(matchedId)
+    }
+
+    private class ChannelNames(val byName: Map<String, Set<String>>, val knownIds: Set<String>)
+
+    private suspend fun channelNames(name: String, sourceId: String?): ChannelNames {
+        if (!cacheChannelIndexes) return readChannelNames(name, sourceId)
+        return channelIndexMutex.withLock {
+            cachedNames ?: loadChannelIndex { readChannelNames(null, null) }.also { cachedNames = it }
+        }
+    }
+
+    private suspend fun readChannelNames(onlyName: String?, sourceId: String?): ChannelNames =
+        readJson(CHANNEL_INDEX, MAX_INDEX_BYTES) { reader ->
+            val found = mutableMapOf<String, MutableSet<String>>()
+            val known = mutableSetOf<String>()
+            var records = 0
+            var associations = 0
             reader.beginArray()
             while (reader.hasNext()) {
                 coroutineContext.ensureActive()
-                val logo = gson.fromJson<ChannelLogoDto>(reader, ChannelLogoDto::class.java)
-                if (logo.channel == id && safeUrl(logo.url) != null) found.add(logo)
+                if (++records > MAX_INDEX_RECORDS) throw IOException("Artwork index record limit exceeded")
+                val channel = gson.fromJson<ChannelDto?>(reader, ChannelDto::class.java) ?: continue
+                val id = channel.id?.trim()?.takeIf { it.isNotEmpty() && it.length <= 256 } ?: continue
+                if (onlyName == null || id == sourceId) known.add(id)
+                for (raw in listOfNotNull(channel.name) + channel.alternativeNames.orEmpty().filterNotNull()) {
+                    if (++associations > MAX_NAME_ASSOCIATIONS) throw IOException("Artwork index name limit exceeded")
+                    if (raw.length > MAX_INDEX_NAME_LENGTH) continue
+                    val key = normalized(raw)
+                    if (key.isEmpty() || (onlyName != null && key != onlyName)) continue
+                    val ids = found.getOrPut(key) { mutableSetOf() }
+                    if (ids.size < 2) ids.add(id)
+                }
             }
             reader.endArray()
-            found
+            ChannelNames(found, known)
         }
-        val preferred = matches.filter { it.inUse == true }.ifEmpty { matches }
-        val urls = preferred.mapNotNull { safeUrl(it.url) }.distinct()
+
+    private suspend fun channelLogo(id: String): ArtworkLookupResult {
+        val choices = if (!cacheChannelIndexes) readChannelLogos(id)[id] else channelIndexMutex.withLock {
+            val index = cachedLogos ?: loadChannelIndex { readChannelLogos(null) }.also { cachedLogos = it }
+            index[id]
+        }
+        val urls = if (choices == null) emptySet() else choices.active.ifEmpty { choices.other }
         return when (urls.size) {
             0 -> ArtworkLookupResult.NoMatch
             1 -> ArtworkLookupResult.Found(ArtworkCandidate(smallUrl = urls.single(), provider = "channel-index"))
             else -> ArtworkLookupResult.Ambiguous
         }
     }
+
+    private class LogoChoices {
+        val active = mutableSetOf<String>()
+        val other = mutableSetOf<String>()
+        fun add(url: String, inUse: Boolean) {
+            val target = if (inUse) active else other
+            if (target.size < 2) target.add(url)
+        }
+    }
+
+    /** Called under channelIndexMutex; cancellation never starts a retry delay. */
+    private suspend fun <T> loadChannelIndex(load: suspend () -> T): T {
+        val now = monotonicNanos()
+        if (channelRetryAt?.let { now - it < 0 } == true) throw IOException("Artwork index retry delayed")
+        return try {
+            load().also { channelRetryAt = null }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            channelRetryAt = monotonicNanos() + CHANNEL_RETRY_DELAY_NANOS
+            throw error
+        }
+    }
+
+    private suspend fun readChannelLogos(onlyId: String?): Map<String, LogoChoices> =
+        readJson(LOGO_INDEX, MAX_INDEX_BYTES) { reader ->
+            val found = mutableMapOf<String, LogoChoices>()
+            var records = 0
+            reader.beginArray()
+            while (reader.hasNext()) {
+                coroutineContext.ensureActive()
+                if (++records > MAX_INDEX_RECORDS) throw IOException("Artwork index record limit exceeded")
+                val logo = gson.fromJson<ChannelLogoDto?>(reader, ChannelLogoDto::class.java) ?: continue
+                val id = logo.channel?.takeIf { it.isNotEmpty() && it.length <= 256 } ?: continue
+                if (onlyId != null && id != onlyId) continue
+                val url = safeUrl(logo.url) ?: continue
+                found.getOrPut(id) { LogoChoices() }.add(url, logo.inUse == true)
+            }
+            reader.endArray()
+            found
+        }
 
     private suspend fun show(query: ArtworkQuery): ArtworkLookupResult {
         val name = normalized(query.title).takeIf { it.isNotEmpty() } ?: return ArtworkLookupResult.NoMatch
@@ -213,5 +289,9 @@ class ArtworkRepository(
         const val MAX_JSON_BYTES = 2L * 1024 * 1024
         const val MAX_IMAGE_BYTES = 16L * 1024 * 1024
         const val MAX_RESULTS = 200
+        const val MAX_INDEX_RECORDS = 150_000
+        const val MAX_NAME_ASSOCIATIONS = 300_000
+        const val MAX_INDEX_NAME_LENGTH = 4096
+        const val CHANNEL_RETRY_DELAY_NANOS = 30_000_000_000L
     }
 }

@@ -30,7 +30,8 @@ class SearchArtworkRepository(
             files.find(historyId, itemId, ArtworkSlot.SMALL)?.let { return@withLock it }
             if (item.logoUrl == null && item.channelId == null) return@withLock null
             val ticket = files.ticket(historyId, itemId)
-            val match = artwork.lookup(ArtworkQuery(item.name, ArtworkMediaType.CHANNEL,
+            val lookupTitle = item.name.takeIf { it.length <= 256 }.orEmpty()
+            val match = artwork.lookup(ArtworkQuery(lookupTitle, ArtworkMediaType.CHANNEL,
                 channelId = item.channelId, playlistLogoUrl = item.logoUrl))
             val url = (match as? ArtworkLookupResult.Found)?.candidate?.smallUrl ?: return@withLock null
             val current = findItem(historyId, itemId)

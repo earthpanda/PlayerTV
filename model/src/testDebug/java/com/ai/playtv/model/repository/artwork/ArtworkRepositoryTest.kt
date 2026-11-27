@@ -4,6 +4,9 @@ import com.ai.playtv.model.bean.domain.artwork.*
 import com.ai.playtv.model.network.service.artwork.ArtworkHttpService
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CompletableDeferred
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
@@ -18,8 +21,10 @@ class ArtworkRepositoryTest {
     private class FakeService : ArtworkHttpService {
         val responses = mutableMapOf<String, String>()
         val authorizations = mutableListOf<String?>()
+        val requests = mutableListOf<String>()
         val redirects = mutableMapOf<String, String>()
         override suspend fun get(url: String, authorization: String?): Response<ResponseBody> {
+            requests.add(url)
             authorizations.add(authorization)
             redirects[url]?.let { location ->
                 val raw = okhttp3.Response.Builder().request(Request.Builder().url(url).build()).protocol(Protocol.HTTP_1_1)
@@ -57,6 +62,94 @@ class ArtworkRepositoryTest {
         assertEquals(ArtworkLookupResult.NoMatch, repo.lookup(ArtworkQuery("missing", ArtworkMediaType.CHANNEL)))
         service.responses[channels] = """[{"id":"id","name":"Example TV"},{"id":"other","alt_names":["Example TV"]}]"""
         assertEquals(ArtworkLookupResult.Ambiguous, repo.lookup(ArtworkQuery("Example TV", ArtworkMediaType.CHANNEL)))
+    }
+
+    @Test fun unknownSourceIdFallsBackToExactNameWithoutChoosingAmbiguousResults() = runBlocking {
+        val service = FakeService()
+        val channels = "https://iptv-org.github.io/api/channels.json"
+        val logos = "https://iptv-org.github.io/api/logos.json"
+        service.responses[logos] = """[{"channel":"standard.id","url":"https://example.org/one.png","in_use":true}]"""
+        service.responses[channels] = """[{"id":"standard.id","name":"Example TV","alt_names":[null,"Example Plus"]}]"""
+        val query = ArtworkQuery("Example Plus", ArtworkMediaType.CHANNEL, channelId = "local-id")
+        val found = ArtworkRepository(service).lookup(query) as ArtworkLookupResult.Found
+        assertEquals("https://example.org/one.png", found.candidate.smallUrl)
+        service.responses[channels] = """[{"id":"standard.id","name":"Example Plus"},{"id":"other.id","name":"Example Plus"}]"""
+        assertEquals(ArtworkLookupResult.Ambiguous, ArtworkRepository(service).lookup(query))
+        service.responses[channels] = """[{"id":"standard.id","name":"Example Plus"}]"""
+        service.responses[logos] = """[{"channel":"standard.id","url":"https://example.org/one.png","in_use":true},{"channel":"standard.id","url":"https://example.org/two.png","in_use":true}]"""
+        assertEquals(ArtworkLookupResult.Ambiguous, ArtworkRepository(service).lookup(query))
+    }
+
+    @Test fun channelIndexCacheIsSharedWithinRepositoryButNotAcrossRepositories() = runBlocking {
+        val service = FakeService()
+        val channels = "https://iptv-org.github.io/api/channels.json"
+        val logos = "https://iptv-org.github.io/api/logos.json"
+        service.responses[channels] = """[{"id":"one.id","name":"One"},{"id":"two.id","name":"Two"}]"""
+        service.responses[logos] = """[{"channel":"one.id","url":"https://example.org/one.png"},{"channel":"two.id","url":"https://example.org/two.png"}]"""
+        val repo = ArtworkRepository(service, cacheChannelIndexes = true)
+        val results = listOf(async { repo.lookup(ArtworkQuery("One", ArtworkMediaType.CHANNEL, channelId = "local-one")) },
+            async { repo.lookup(ArtworkQuery("Two", ArtworkMediaType.CHANNEL, channelId = "local-two")) }).awaitAll()
+        assertEquals("https://example.org/one.png", (results[0] as ArtworkLookupResult.Found).candidate.smallUrl)
+        assertEquals("https://example.org/two.png", (results[1] as ArtworkLookupResult.Found).candidate.smallUrl)
+        assertEquals(1, service.requests.count { it == channels })
+        assertEquals(1, service.requests.count { it == logos })
+        service.responses[logos] = """[{"channel":"one.id","url":"https://example.org/new.png"}]"""
+        val refreshed = ArtworkRepository(service, cacheChannelIndexes = true)
+            .lookup(ArtworkQuery("One", ArtworkMediaType.CHANNEL, channelId = "local-one")) as ArtworkLookupResult.Found
+        assertEquals("https://example.org/new.png", refreshed.candidate.smallUrl)
+        assertEquals(2, service.requests.count { it == logos })
+    }
+
+    @Test fun knownChannelIdWithoutLogoDoesNotFallBackToAnotherChannel() = runBlocking {
+        val service = FakeService()
+        service.responses["https://iptv-org.github.io/api/channels.json"] =
+            """[{"id":"known.id","name":"Original"},{"id":"other.id","name":"Example"}]"""
+        service.responses["https://iptv-org.github.io/api/logos.json"] =
+            """[{"channel":"other.id","url":"https://example.org/other.png"}]"""
+        val query = ArtworkQuery("Example", ArtworkMediaType.CHANNEL, channelId = "known.id")
+        assertEquals(ArtworkLookupResult.NoMatch, ArtworkRepository(service, cacheChannelIndexes = true).lookup(query))
+    }
+
+    @Test fun failedIndexLoadIsThrottledAndRetriedAfterCooldown() = runBlocking {
+        val service = FakeService()
+        val channels = "https://iptv-org.github.io/api/channels.json"
+        val logos = "https://iptv-org.github.io/api/logos.json"
+        service.responses[logos] = """[{"channel":"standard.id","url":"https://example.org/one.png"}]"""
+        var now = 1L
+        val repo = ArtworkRepository(service, cacheChannelIndexes = true, monotonicNanos = { now })
+        val query = ArtworkQuery("Example", ArtworkMediaType.CHANNEL, channelId = "local-id")
+        try { repo.lookup(query); fail("missing index expected") } catch (_: IOException) { }
+        service.responses[channels] = """[{"id":"standard.id","name":"Example"}]"""
+        try { repo.lookup(query); fail("retry must be delayed") } catch (_: IOException) { }
+        assertEquals(1, service.requests.count { it == channels })
+        now += 30_000_000_000L
+        assertTrue(repo.lookup(query) is ArtworkLookupResult.Found)
+        assertEquals(2, service.requests.count { it == channels })
+        assertEquals(1, service.requests.count { it == logos })
+    }
+
+    @Test fun cancellingIndexLoadAllowsNextLookupToRetry() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val blocked = CompletableDeferred<Unit>()
+        var logoRequests = 0
+        val service = object : ArtworkHttpService {
+            override suspend fun get(url: String, authorization: String?): Response<ResponseBody> {
+                if (url.endsWith("/logos.json")) {
+                    logoRequests++
+                    if (logoRequests == 1) { started.complete(Unit); blocked.await() }
+                    return Response.success("""[{"channel":"id","url":"https://example.org/logo.png"}]""".toResponseBody())
+                }
+                throw IOException("unexpected fixture")
+            }
+        }
+        val repo = ArtworkRepository(service, cacheChannelIndexes = true)
+        val query = ArtworkQuery("Example", ArtworkMediaType.CHANNEL, channelId = "id")
+        val first = async { repo.lookup(query) }
+        started.await()
+        first.cancel()
+        try { first.await(); fail("cancellation expected") } catch (_: CancellationException) { }
+        assertTrue(repo.lookup(query) is ArtworkLookupResult.Found)
+        assertEquals(2, logoRequests)
     }
 
     @Test fun channelIndexEnforcesResponseLimitAndPropagatesCancellation() = runBlocking {

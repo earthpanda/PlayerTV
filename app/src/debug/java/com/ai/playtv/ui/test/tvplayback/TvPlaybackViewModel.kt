@@ -33,7 +33,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Debug-only session; all player and surface commands are issued on main. */
 class TvPlaybackViewModel(private val appContext: Context, private val repository: SourceRepository,
@@ -103,7 +105,9 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     }
                     setState { copy(phase = snapshot.phase.name, positionMs = snapshot.positionMs,
                         durationMs = snapshot.durationMs, seekable = snapshot.seekable, bufferedPercent = snapshot.bufferedPercent,
-                        error = snapshot.failure?.code?.name,
+                        error = playbackFailureReason(snapshot.failure),
+                        hideVideo = hideVideo && !(snapshot.phase in setOf(PlaybackPhase.PLAYING, PlaybackPhase.PAUSED) &&
+                            (snapshot.mediaInfo?.videoStreamCount ?: 0) > 0),
                         audioWithoutVideo = snapshot.phase in setOf(PlaybackPhase.PLAYING, PlaybackPhase.PAUSED, PlaybackPhase.BUFFERING) &&
                             snapshot.failure == null && snapshot.mediaInfo?.let { it.audioStreamCount > 0 && it.videoStreamCount == 0 } == true) }
                 }
@@ -125,6 +129,11 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
         if (event == TvPlaybackEvent.Background) background = true
         val activePlayer = player ?: run {
             if (event !is TvPlaybackEvent.Background) setState { copy(error = "PLAYER_NOT_READY") }
+            return
+        }
+        if (currentState.sourceResolving && event !is TvPlaybackEvent.SelectImported && event != TvPlaybackEvent.Background) return
+        if (event == TvPlaybackEvent.Toggle && currentState.phase == "FAILED" && requestedSource != null) {
+            selectImported(requestedSource!!)
             return
         }
         when (event) {
@@ -204,26 +213,48 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
         }
     }
     private fun selectImported(source: ImportedSource) {
+        val activePlayer = player ?: return
+        val hadPreviousSource = requestedSource != null
+        val previousGeneration = activePlayer.state.value.generation
+        val stop = if (hadPreviousSource) activePlayer.stop() else null
         selectionJob?.cancel()
         requestedSource = source
-        setState { copy(sourceResolving = true, error = null, audioWithoutVideo = false) }
+        sourceGeneration = -1L
+        setState { copy(activeId = source.id, activeName = source.name, sourceResolving = true,
+            phase = "PREPARING", positionMs = 0, durationMs = null, seekable = false, bufferedPercent = 0,
+            error = null, audioWithoutVideo = false, hideVideo = true) }
+        if (stop is CommandResult.Rejected) {
+            Log.w("PlayTvPreview", "stop rejected: ${stop.failure.code}")
+            setState { copy(sourceResolving = false, phase = "FAILED", error = "STOP_FAILED") }
+            return
+        }
         selectionJob = viewModelScope.launch {
             try {
+                if (hadPreviousSource) {
+                    val stopped = withTimeoutOrNull(10_000L) {
+                        activePlayer.state.first { it.generation == previousGeneration && it.phase == PlaybackPhase.IDLE }
+                    }
+                    if (stopped == null) {
+                        Log.w("PlayTvPreview", "stop confirmation timed out")
+                        setState { copy(sourceResolving = false, phase = "FAILED", error = "STOP_FAILED") }
+                        return@launch
+                    }
+                }
                 val url = repository.playbackUrl(source.url)
-                val activePlayer = player ?: return@launch
                 val result = activePlayer.loadHttps(url, PlaybackOptions(playWhenReady = !background))
                 if (result is CommandResult.Accepted) {
                     importedSource = source
                     sourceGeneration = activePlayer.state.value.generation
                     setState { copy(activeId = source.id, activeName = source.name, phase = "PREPARING", positionMs = 0, sourceResolving = false,
                         durationMs = null, seekable = false, bufferedPercent = 0, error = null, audioWithoutVideo = false) }
-                } else setState { copy(sourceResolving = false) }
+                } else setState { copy(sourceResolving = false, phase = "FAILED") }
                 report(result)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 currentCoroutineContext().ensureActive()
                 Log.w("PlayTvPreview", "source resolution failed: ${error.javaClass.simpleName}")
-                setState { copy(sourceResolving = false, error = "SOURCE_RESOLUTION_FAILED") }
+                setState { copy(sourceResolving = false, phase = "FAILED",
+                    error = resolutionFailureReason(error.sourceHttpStatus())) }
                 if (error.sourceHttpStatus() == 403) setEffect(TvPlaybackEffect.ServerForbidden)
             }
         }

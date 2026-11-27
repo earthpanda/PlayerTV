@@ -13,10 +13,12 @@
     <string name="s_tv_preview_buffering">Buffering</string>
     <string name="s_tv_preview_ended">Playback ended</string>
     <string name="s_tv_preview_failed">Playback failed</string>
+    <string name="s_tv_preview_stop_failed">Could not confirm playback stopped. Try again.</string>
     <string name="s_tv_preview_releasing">Stopping playback</string>
     <string name="s_tv_preview_released">Playback stopped</string>
     <string name="s_tv_preview_status_unknown">Unknown status</string>
     <string name="s_tv_preview_status_with_error">%1$s · An operation or playback failed</string>
+    <string name="s_tv_preview_source_unavailable">Source unavailable</string>
     <string name="s_tv_preview_title">Playback</string>
     <string name="s_tv_preview_no_source">No source selected</string>
     <string name="s_tv_preview_zero_time">00:00</string>

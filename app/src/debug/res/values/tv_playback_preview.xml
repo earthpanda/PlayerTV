@@ -13,10 +13,12 @@
     <string name="s_tv_preview_buffering">正在缓冲</string>
     <string name="s_tv_preview_ended">播放结束</string>
     <string name="s_tv_preview_failed">播放失败</string>
+    <string name="s_tv_preview_stop_failed">无法确认停止当前播放，请重试</string>
     <string name="s_tv_preview_releasing">正在结束播放</string>
     <string name="s_tv_preview_released">播放已结束</string>
     <string name="s_tv_preview_status_unknown">状态未知</string>
     <string name="s_tv_preview_status_with_error">%1$s · 操作或播放出错</string>
+    <string name="s_tv_preview_source_unavailable">来源不可用</string>
     <string name="s_tv_preview_title">播放</string>
     <string name="s_tv_preview_no_source">未选择播放来源</string>
     <string name="s_tv_preview_zero_time">00:00</string>

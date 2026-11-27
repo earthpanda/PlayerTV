@@ -6,7 +6,7 @@ import com.google.gson.annotations.SerializedName
 @JsonModel data class ChannelDto(
     @SerializedName("id") val id: String?,
     @SerializedName("name") val name: String?,
-    @SerializedName("alt_names") val alternativeNames: List<String>?,
+    @SerializedName("alt_names") val alternativeNames: List<String?>?,
 )
 
 @JsonModel data class ChannelLogoDto(

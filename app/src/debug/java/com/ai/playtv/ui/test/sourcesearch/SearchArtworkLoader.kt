@@ -44,7 +44,7 @@ class SearchArtworkLoader(application: SourcePreviewApplication) : AutoCloseable
     private val repository = try {
         SearchArtworkRepository(
             { historyId, itemId -> application.sourceHistory.find(historyId)?.items?.firstOrNull { it.id == itemId } },
-            ArtworkRepository(network.service(ArtworkHttpService::class.java)), application.sourceArtwork, encoder, MAX_IMAGE_BYTES)
+            ArtworkRepository(network.service(ArtworkHttpService::class.java), cacheChannelIndexes = true), application.sourceArtwork, encoder, MAX_IMAGE_BYTES)
     } catch (failure: Throwable) {
         network.close()
         throw failure
@@ -52,6 +52,7 @@ class SearchArtworkLoader(application: SourcePreviewApplication) : AutoCloseable
     private val failures = object : LinkedHashMap<Triple<String, String, String?>, Long>(32, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<String, String, String?>, Long>?) = size > 256
     }
+    private var reportedNoResult = false
 
     /** Caller cancels the previous job and clears the view before every bind and on recycle. */
     fun bind(view: ImageView, row: SearchRow): Job = scope.launch {
@@ -62,7 +63,15 @@ class SearchArtworkLoader(application: SourcePreviewApplication) : AutoCloseable
             permits.withPermit {
                 val file = repository.small(row.historyId, row.itemId)
                 val bitmap = file?.let { withContext(Dispatchers.IO) { decode(it, 512) } }
-                if (bitmap == null) failures[key] = SystemClock.elapsedRealtime()
+                if (bitmap == null) {
+                    failures[key] = SystemClock.elapsedRealtime()
+                    if (file != null) {
+                        DiagnosticLog.write(DiagnosticLevel.WARN, DiagnosticEvent("search_artwork", "decode", "failed"))
+                    } else if (!reportedNoResult) {
+                        reportedNoResult = true
+                        DiagnosticLog.write(DiagnosticLevel.WARN, DiagnosticEvent("search_artwork", "lookup", "no_result"))
+                    }
+                }
                 else { failures.remove(key); view.setImageBitmap(bitmap) }
             }
         } catch (cancelled: CancellationException) {

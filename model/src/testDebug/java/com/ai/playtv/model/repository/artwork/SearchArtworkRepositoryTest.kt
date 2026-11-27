@@ -59,4 +59,46 @@ class SearchArtworkRepositoryTest {
         assertEquals(1, calls)
         assertNull(store.find("source", "one", com.ai.playtv.model.storage.artwork.ArtworkSlot.SMALL))
     }
+
+    @Test fun sourceLocalIdsFindAndSaveLogosByChannelName() = runBlocking {
+        val calls = mutableListOf<String>()
+        val service = object : ArtworkHttpService {
+            override suspend fun get(url: String, authorization: String?): Response<ResponseBody> {
+                calls.add(url)
+                val body = when (url) {
+                    "https://iptv-org.github.io/api/logos.json" ->
+                        """[{"channel":"one.id","url":"https://example.org/one.png"},{"channel":"two.id","url":"https://example.org/two.png"}]""".toResponseBody()
+                    "https://iptv-org.github.io/api/channels.json" ->
+                        """[{"id":"one.id","name":"One"},{"id":"two.id","name":"Two"}]""".toResponseBody()
+                    "https://example.org/one.png", "https://example.org/two.png" -> bytes.toResponseBody()
+                    else -> throw java.io.IOException("unexpected fixture")
+                }
+                return Response.success(body)
+            }
+        }
+        val items = listOf(
+            ImportedSource("one", "One", "https://example.org/play1", SourceKind.UNKNOWN, channelId = "One"),
+            ImportedSource("two", "Two", "https://example.org/play2", SourceKind.UNKNOWN, channelId = "Two"),
+        ).associateBy { it.id }
+        val store = ArtworkFileStore(temporary.newFolder(), 1024, 4096)
+        val repo = SearchArtworkRepository({ _, itemId -> items[itemId] },
+            ArtworkRepository(service, cacheChannelIndexes = true), store, ArtworkImageEncoder { _, _, _ -> false }, 1024)
+        assertArrayEquals(bytes, repo.small("source", "one")!!.readBytes())
+        assertArrayEquals(bytes, repo.small("source", "two")!!.readBytes())
+        assertEquals(1, calls.count { it.endsWith("/logos.json") })
+        assertEquals(1, calls.count { it.endsWith("/channels.json") })
+    }
+
+    @Test fun longTitleDoesNotPreventUsingAnExplicitLogo() = runBlocking {
+        val service = object : ArtworkHttpService {
+            override suspend fun get(url: String, authorization: String?): Response<ResponseBody> =
+                Response.success(bytes.toResponseBody())
+        }
+        val item = ImportedSource("one", "a".repeat(257), "https://example.org/play", SourceKind.UNKNOWN,
+            logoUrl = "https://example.org/logo.png")
+        val store = ArtworkFileStore(temporary.newFolder(), 1024, 4096)
+        val repo = SearchArtworkRepository({ _, _ -> item }, ArtworkRepository(service), store,
+            ArtworkImageEncoder { _, _, _ -> false }, 1024)
+        assertArrayEquals(bytes, repo.small("source", "one")!!.readBytes())
+    }
 }
