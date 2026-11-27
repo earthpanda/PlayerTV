@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:orientation="vertical" android:gravity="center" android:padding="16pt"
+    android:clipChildren="false" android:clipToPadding="false">
+    <com.ai.playtv.view.loading.CustomLoadingView android:id="@+id/operation_loading_view"
+        android:layout_width="wrap_content" android:layout_height="wrap_content" />
+    <TextView android:id="@+id/operation_loading_cancel"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="12pt" android:minWidth="100pt" android:minHeight="40pt"
+        android:gravity="center" android:clickable="true" android:focusable="true"
+        android:background="@drawable/loading_cancel_background"
+        android:textColor="@color/loading_cancel_text" android:text="@string/s_feedback_cancel"
+        android:textSize="14pt" />
+</LinearLayout>

@@ -4,11 +4,11 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.widget.FrameLayout
-import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.core.view.isVisible
 import com.ai.playtv.R
 import com.ai.playtv.model.state.common.PageStatus
+import com.ai.playtv.view.loading.CustomLoadingView
 
 /**
  * App-owned renderer of model PageStatus; base stays independent of business/page contracts.
@@ -16,10 +16,11 @@ import com.ai.playtv.model.state.common.PageStatus
  */
 class PageStateLayout @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     FrameLayout(context, attrs) {
+    private val stateBackground = background
     /** UI callback remains in the renderer; never serialized into a page State. */
     var onRetry: (() -> Unit)? = null
     /** Progress indicator belonging to the renderer's layout. */
-    private val progress: ProgressBar
+    private val progress: CustomLoadingView
     /** Localized phase message. */
     private val message: TextView
     /** Retry is a text action, following the project's button convention. */
@@ -36,7 +37,10 @@ class PageStateLayout @JvmOverloads constructor(context: Context, attrs: Attribu
     /** Update a mutually exclusive first-page phase without deciding business recovery. */
     fun render(status: PageStatus) {
         isVisible = status != PageStatus.Content
-        progress.isVisible = status == PageStatus.Loading || status == PageStatus.Initial
+        val loading = status == PageStatus.Loading || status == PageStatus.Initial
+        background = if (loading) null else stateBackground
+        if (loading) progress.showLoading(context.getString(R.string.s_common_loading)) else progress.hide()
+        message.isVisible = !loading
         retry.isVisible = status == PageStatus.Error
         message.setText(when (status) {
             PageStatus.Empty -> R.string.s_common_empty

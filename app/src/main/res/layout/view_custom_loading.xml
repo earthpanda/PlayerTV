@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+    <LinearLayout android:id="@+id/loading_card"
+        android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:background="@drawable/loading_card_background" android:elevation="16pt"
+        android:orientation="vertical" android:gravity="center_horizontal" android:padding="24pt">
+        <ImageView android:id="@+id/loading_icon"
+            android:layout_width="32pt" android:layout_height="32pt"
+            android:contentDescription="@null" android:src="@drawable/page_loading_toast"
+            android:tint="@color/loading_label" />
+        <TextView android:id="@+id/loading_text"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="8pt" android:gravity="center" android:includeFontPadding="false"
+            android:textColor="@color/loading_label" android:textSize="14pt"
+            android:accessibilityLiveRegion="polite" />
+    </LinearLayout>
+</merge>

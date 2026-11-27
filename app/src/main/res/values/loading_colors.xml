@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gray_white">#FFFFFFFF</color>
+    <color name="brand_primary">#FF5A63F3</color>
+    <color name="loading_card">#FFF3F3F3</color>
+    <color name="loading_label">#E5000000</color>
+    <color name="loading_error">#FFF83C35</color>
+</resources>

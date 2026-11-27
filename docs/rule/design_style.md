@@ -3,6 +3,7 @@
 当前只有技术预览的中性颜色和文字样式，不代表新产品 UI Kit 已确认。真实页面先读取用户的 MCP/设计系统，不套用 Sony 或预览样式。
 
 - 已提供的颜色与文字样式在 base/src/main/res/values/colors.xml、styles.xml；app 的 Theme.Template 使用 Light.NoActionBar，未宣称支持动态深色切换。
+- 普通操作按钮默认使用比页面背景稍亮、可辨认的灰色，获得焦点时使用蓝色；禁用状态仍须与可操作状态区分。已有确认的设计稿和特殊语义控件按对应场景处理。
 - 优先复用真实语义一致的 token、TextAppearance、shape/selector。spacing/padding/radius 等 token 在有新设计依据时登记，不凭经验填品牌数值。
 - 样式背景按形状职责和状态命名；MCP 图标/图片保持同名，不为资源复用随意改业务前缀。外观相似不足以证明资产身份相同。
 - 圆角背景优先 shape/Drawable；图片变换使用实际启用的 image 能力及 ImageLoader，先核对组件目录，不调用未启用的 API。

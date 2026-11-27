@@ -26,6 +26,7 @@ import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.model.contract.sourceentry.*
 import com.ai.playtv.ui.BaseMviActivity
 import com.ai.playtv.ui.test.tvplayback.TvPlaybackActivity
+import com.ai.playtv.view.loading.createOperationLoadingController
 
 class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEntryState, SourceEntryEvent,
     SourceEntryEffect, SourceEntryViewModel>(ActivitySourceEntryBinding::inflate) {
@@ -81,7 +82,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         super.onSaveInstanceState(outState)
     }
     override fun initView() {
-        loading = OperationLoadingController(this)
+        loading = createOperationLoadingController(this)
         messages = MessageController(this)
         keyboard = KeyboardController(binding.sourceUrl)
         repositoryAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, mutableListOf<String>())
@@ -258,26 +259,24 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         super.onDestroy()
     }
     override fun render(state: SourceEntryState) {
-        binding.submit.isEnabled = state.loadingId == null && !state.historyOpening
         if (repositorySuggestions != state.repositorySuggestions) {
             repositorySuggestions = state.repositorySuggestions
             repositoryAdapter.clear()
             repositoryAdapter.addAll(repositorySuggestions)
         }
-        historyAdapter.submitList(state.history) {
-            if (!isFinishing && !isDestroyed && pendingHistoryFocus && selectedTab == HomeTab.HISTORY && binding.historyTab.hasFocus()) {
-                pendingHistoryFocus = false
-                enterSelectedTab()
+        if (!state.historyLoading) {
+            historyAdapter.submitList(state.history) {
+                if (!isFinishing && !isDestroyed && pendingHistoryFocus && selectedTab == HomeTab.HISTORY && binding.historyTab.hasFocus()) {
+                    pendingHistoryFocus = false
+                    enterSelectedTab()
+                }
             }
+            binding.history.visibility = if (state.history.isNotEmpty()) View.VISIBLE else View.GONE
+            binding.historyEmpty.visibility = if (!state.historyFailed && state.history.isEmpty()) View.VISIBLE else View.GONE
+            binding.historyMessage.text = if (state.historyFailed) getString(R.string.s_tv_history_failed) else ""
         }
-        binding.history.visibility = if (state.history.isNotEmpty()) View.VISIBLE else View.GONE
-        binding.historyEmpty.visibility = if (!state.historyLoading && !state.historyFailed && state.history.isEmpty())
-            View.VISIBLE else View.GONE
-        binding.historyMessage.text = when {
-            state.historyFailed -> getString(R.string.s_tv_history_failed)
-            state.historyLoading -> getString(R.string.s_tv_history_loading)
-            else -> ""
-        }
+        if (state.historyLoading) binding.historyLoading.showLoading(getString(R.string.s_tv_history_loading))
+        else binding.historyLoading.hide()
         loading.render(state.loadingId, getString(R.string.s_tv_import_loading), true) { viewModel.onEvent(SourceEntryEvent.Cancel(it)) }
         binding.status.text = when (state.error) {
             "EMPTY" -> getString(R.string.s_tv_import_empty)
