@@ -74,6 +74,25 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             HomeTab.SOURCES else HomeTab.HISTORY
         lastHistoryFocus = savedInstanceState?.getString(SAVED_HISTORY_FOCUS)
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) openSharedSource(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openSharedSource(intent)
+    }
+
+    private fun openSharedSource(intent: Intent?) {
+        if (intent?.action != ShareSourceHandoff.ACTION) return
+        val url = ShareSourceHandoff.consume(intent.getStringExtra(ShareSourceHandoff.EXTRA_TOKEN))
+        if (url == null) {
+            messages.show(getString(R.string.s_tv_import_failed))
+        } else {
+            selectTab(HomeTab.SOURCES)
+            binding.sourceUrl.setText(url)
+            viewModel.onEvent(SourceEntryEvent.Submit(url))
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

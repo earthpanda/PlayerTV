@@ -4,6 +4,8 @@
         <activity android:name=".ui.test.sample.SampleActivity" tools:node="remove" />
         <activity android:name=".ui.test.tvplayback.TvPlaybackActivity" android:exported="false" android:screenOrientation="landscape" />
         <activity android:name=".ui.test.sourcesearch.SourceSearchActivity" android:exported="false" android:screenOrientation="landscape" />
+        <activity android:name=".ui.test.sourceentry.ShareSourceImportActivity" android:exported="true"
+            android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
         <activity android:name=".ui.test.sourceentry.SourceEntryActivity" android:exported="true" android:screenOrientation="landscape">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
