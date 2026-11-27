@@ -4,6 +4,7 @@ Loading 所用图标由用户明确指定本地参考工程并授权迁移；其
 
 | MCP 原名 | fileKey/nodeId | Android 规范化名 | 实际本地文件 | 类型/状态与来源核对 |
 |---|---|---|---|---|
+| PlayTV 应用图标 | 不适用 | playtv_app_icon | app/src/main/res/drawable/playtv_app_icon.xml | 按用户要求原创的应用图标，VectorDrawable |
 | page_loading_toast | 未知 | page_loading_toast | app/src/main/res/drawable/page_loading_toast.xml | VectorDrawable；本地参考工程迁移，加载旋转图标 |
 | checkbox_circle_filled | 未知 | checkbox_circle_filled | app/src/main/res/drawable/checkbox_circle_filled.xml | VectorDrawable；本地参考工程迁移，成功状态 |
 | warning_filled | 未知 | warning_filled | app/src/main/res/drawable/warning_filled.xml | VectorDrawable；本地参考工程迁移，失败状态 |

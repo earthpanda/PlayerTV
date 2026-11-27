@@ -47,4 +47,12 @@ class TvPreviewSeekMathTest {
         assertEquals(0L, TvPreviewSeekMath.step(3_000, -10_000, 50_000))
         assertEquals(50_000L, TvPreviewSeekMath.step(45_000, 10_000, 50_000))
     }
+
+    @Test fun longRemotePressAcceleratesAndStillClamps() {
+        assertEquals(10_000L, TvPreviewSeekMath.remoteStepMs(1_000))
+        val accelerated = TvPreviewSeekMath.remoteStepMs(1_001)
+        assertEquals(60_000L, accelerated)
+        assertEquals(70_000L, TvPreviewSeekMath.step(40_000, accelerated, 70_000))
+        assertEquals(0L, TvPreviewSeekMath.step(40_000, -accelerated, 70_000))
+    }
 }

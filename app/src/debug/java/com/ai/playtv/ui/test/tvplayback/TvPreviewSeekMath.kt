@@ -2,6 +2,9 @@ package com.ai.playtv.ui.test.tvplayback
 
 /** Position calculations only; availability and command ownership remain with the player. */
 internal object TvPreviewSeekMath {
+    /** Keep the initial step precise, then accelerate a sustained remote press. */
+    fun remoteStepMs(heldMs: Long): Long = if (heldMs > 1_000L) 60_000L else 10_000L
+
     /** Lock a gesture only after sufficient travel and a clear directional majority. */
     fun axis(dx: Float, dy: Float, slop: Int): Int {
         if (!dx.isFinite() || !dy.isFinite() || slop <= 0) return 0

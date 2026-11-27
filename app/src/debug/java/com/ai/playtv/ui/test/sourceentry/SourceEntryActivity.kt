@@ -23,6 +23,7 @@ import com.ai.playtv.base.ui.message.MessageController
 import com.ai.playtv.databinding.ActivitySourceEntryBinding
 import com.ai.playtv.di.viewModelFactory
 import com.ai.playtv.model.contract.sourceentry.*
+import com.ai.playtv.service.homecontent.HomeContentActions
 import com.ai.playtv.ui.BaseMviActivity
 import com.ai.playtv.ui.test.tvplayback.TvPlaybackActivity
 import com.ai.playtv.ui.test.sourcesearch.SourceSearchActivity
@@ -74,17 +75,17 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             HomeTab.SOURCES else HomeTab.HISTORY
         lastHistoryFocus = savedInstanceState?.getString(SAVED_HISTORY_FOCUS)
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) openSharedSource(intent)
+        if (savedInstanceState == null && !openSharedSource(intent)) openHomeContentAction(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        openSharedSource(intent)
+        if (!openSharedSource(intent)) openHomeContentAction(intent)
     }
 
-    private fun openSharedSource(intent: Intent?) {
-        if (intent?.action != ShareSourceHandoff.ACTION) return
+    private fun openSharedSource(intent: Intent?): Boolean {
+        if (intent?.action != ShareSourceHandoff.ACTION) return false
         val url = ShareSourceHandoff.consume(intent.getStringExtra(ShareSourceHandoff.EXTRA_TOKEN))
         if (url == null) {
             messages.show(getString(R.string.s_tv_import_failed))
@@ -92,6 +93,20 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             selectTab(HomeTab.SOURCES)
             binding.sourceUrl.setText(url)
             viewModel.onEvent(SourceEntryEvent.Submit(url))
+        }
+        return true
+    }
+
+    private fun openHomeContentAction(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        when (intent.getStringExtra(HomeContentActions.EXTRA)) {
+            // Older hosts cannot route this shortcut to the host-owned share-code UI.
+            HomeContentActions.SHARE_CODE -> messages.show(getString(R.string.s_home_share_code_use_gentv))
+            HomeContentActions.HISTORY -> {
+                selectTab(HomeTab.HISTORY)
+                binding.historyTab.requestFocus()
+            }
+            HomeContentActions.SEARCH -> startActivity(Intent(this, SourceSearchActivity::class.java))
         }
     }
 

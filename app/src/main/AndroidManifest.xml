@@ -5,9 +5,14 @@
          a technical preview; TV artwork and the actual UI are pending. -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <queries>
+        <package android:name="com.gentv.tv" />
+    </queries>
     <application
         android:name=".AppApplication"
         android:allowBackup="false"
+        android:icon="@drawable/playtv_app_icon"
+        android:roundIcon="@drawable/playtv_app_icon"
         android:label="@string/s_app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Template">
@@ -18,6 +23,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <meta-data android:name="com.gentv.tv.home.PROTOCOL_MAJOR" android:value="1" />
+            <meta-data android:name="com.gentv.tv.home.CONTENT_SERVICE"
+                android:value="com.ai.playtv.service.homecontent.HomeContentService" />
         </activity>
+        <service android:name=".service.homecontent.HomeContentService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.gentv.tv.home.BIND_CONTENT" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

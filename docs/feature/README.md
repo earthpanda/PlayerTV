@@ -6,6 +6,7 @@
 - [媒体资料与图片](media-metadata-artwork.md)：频道台标、影视海报与背景图的匹配、本地保存及删除；底层试验中，尚未接入页面。
 - [已保存条目搜索](source-search.md)：debug 入口中的本地搜索与播放跳转；待设备验收。
 - [分享码](share-code.md)：同机从桌面交接已保存的播放源链接（debug，待验证）；跨设备分享码和应用安装仍为草案。
+- [GenTV 桌面内容](gentv-home-content.md)：GHCP 1 最小公开入口，打开已安装的 PlayTV。
 
 
 

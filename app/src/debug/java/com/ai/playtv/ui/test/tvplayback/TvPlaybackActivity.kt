@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -74,6 +75,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     private var gestureDurationMs = 0L
     private var touchMode = 0 // 0 undecided, 1 horizontal, 2 vertical
     private var heldKey: Int? = null
+    private var heldSinceMs = 0L
     private var longSeekStarted = false
     private var videoTouchActive = false
     private var progressTracking = false
@@ -97,7 +99,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             longSeekStarted = true
             val duration = state.durationMs
             if (state.seekable && duration != null && duration > 0 && gestureSource == state.activeId) {
-                val delta = if (key == KeyEvent.KEYCODE_DPAD_RIGHT) 10_000L else -10_000L
+                val increment = TvPreviewSeekMath.remoteStepMs(SystemClock.uptimeMillis() - heldSinceMs)
+                val delta = if (key == KeyEvent.KEYCODE_DPAD_RIGHT) increment else -increment
                 previewMs = TvPreviewSeekMath.step(previewMs ?: pendingSeek?.targetMs ?: state.positionMs, delta, duration)
                 renderProgress()
             } else {
@@ -334,6 +337,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                     handler.removeCallbacks(seekStep)
                     heldKey = event.keyCode
+                    heldSinceMs = event.downTime
                     gestureSource = state.activeId
                     longSeekStarted = false
                     previewMs = null
