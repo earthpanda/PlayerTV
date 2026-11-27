@@ -187,7 +187,9 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             "RELEASED" -> R.string.s_tv_preview_released
             else -> R.string.s_tv_preview_status_unknown
         })
-        binding.status.text = if (state.sourceResolving) getString(R.string.s_tv_preview_preparing) else if (state.error != null) {
+        binding.status.text = if (state.sourceResolving) getString(R.string.s_tv_preview_preparing) else if (state.error == SOURCE_UNAVAILABLE) {
+            getString(R.string.s_tv_preview_source_unavailable)
+        } else if (state.error != null) {
             getString(R.string.s_tv_preview_status_with_error, status)
         } else status
         val sourceName = state.activeName ?: getString(R.string.s_tv_preview_no_source)

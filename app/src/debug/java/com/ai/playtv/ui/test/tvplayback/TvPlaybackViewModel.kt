@@ -90,7 +90,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                     }
                     setState { copy(phase = snapshot.phase.name, positionMs = snapshot.positionMs,
                         durationMs = snapshot.durationMs, seekable = snapshot.seekable, bufferedPercent = snapshot.bufferedPercent,
-                        error = snapshot.failure?.code?.name) }
+                        error = playbackFailureReason(snapshot.failure)) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -164,7 +164,8 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
             catch (error: Exception) {
                 currentCoroutineContext().ensureActive()
                 Log.w("PlayTvPreview", "source resolution failed: ${error.javaClass.simpleName}")
-                setState { copy(sourceResolving = false, error = "SOURCE_RESOLUTION_FAILED") }
+                setState { copy(sourceResolving = false,
+                    error = resolutionFailureReason(error.sourceHttpStatus())) }
                 if (error.sourceHttpStatus() == 403) setEffect(TvPlaybackEffect.ServerForbidden)
             }
         }
