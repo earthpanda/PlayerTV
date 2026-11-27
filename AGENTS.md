@@ -4,6 +4,7 @@
 
 - 只在已获授权时构建。构建前检查其他 Gradle 是否正在使用；若正在构建则等待，不中断其他工作。
 - 优先使用 Wrapper 的 `--no-daemon`。构建前后通过 PID、启动时间和父进程核对归属；结束后只清理由本次构建启动且仍存活的进程，不使用 `gradlew --stop` 或按进程名批量结束。
+- PlayTV debug 打包统一使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`（需要离线时加 `-Offline`）。入口按顺序发布相邻 `PlaybackSDK-playtv` 当前源码并构建 PlayTV，启用 `-DTest=true`，使用唯一 SDK 版本并核对 APK 内双架构库；禁止用旧的固定版本替代该流程。直接 Gradle 打包和 Android Studio 默认 Run 触发的打包会提示使用该入口；运行设备时使用该入口生成的 APK，不能把失败或旧 APK 当成新包。仅编译或运行单元测试不触发此打包入口。
 
 开始任务先读本文件、[本项目基线](docs/rule/project-context.md) 与 [项目约定](docs/rule/project-conventions.md)。本工程独立维护自己的准则，日常开发以本工程文档为准；原型仅是初始化参考，后续变更不自动同步。
 

@@ -15,6 +15,9 @@ android {
         versionName = "0.1.0"
         buildConfigField("boolean", "TEST_MODE", providers.systemProperty("Test")
             .map { it.equals("true", ignoreCase = true) }.orElse(false).get().toString())
+        // Only set for an explicitly selected SDK candidate that handles this sample.
+        buildConfigField("boolean", "TEST_WEBM_CANDIDATE", providers.gradleProperty("testWebmCandidate")
+            .map { it.equals("true", ignoreCase = true) }.orElse(false).get().toString())
     }
     buildFeatures { viewBinding = true; buildConfig = true }
     compileOptions {

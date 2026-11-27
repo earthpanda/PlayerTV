@@ -3,6 +3,7 @@ package com.ai.playtv.ui.test.tvplayback
 import android.content.Context
 import android.util.Log
 import android.view.Surface
+import com.ai.playtv.BuildConfig
 import androidx.lifecycle.viewModelScope
 import com.ai.playback.AndroidPlayer
 import com.ai.playback.CommandResult
@@ -32,8 +33,8 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
     private val session: SourceDiscoverySession? = null) :
     BaseMviViewModel<TvPlaybackState, TvPlaybackEvent, TvPlaybackEffect>(TvPlaybackState(
         imported = initialSources, importPartial = partial,
-        activeId = initialSources.firstOrNull { it.url != KNOWN_CRASHING_WEBM }?.id ?: TvPreviewSource.BUNNY.name,
-        activeName = initialSources.firstOrNull { it.url != KNOWN_CRASHING_WEBM }?.name,
+        activeId = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.id ?: TvPreviewSource.BUNNY.name,
+        activeName = initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.name,
     )) {
     companion object { const val KNOWN_CRASHING_WEBM = "https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.webm" }
     private var player: AndroidPlayer? = null
@@ -91,7 +92,7 @@ class TvPlaybackViewModel(private val appContext: Context, private val repositor
                 player = created
                 surface?.let { report(created.setSurface(it)) }
                 if (initialSources.isEmpty() && sessionId == null) loadSource(created, currentSource)
-                else initialSources.firstOrNull { it.url != KNOWN_CRASHING_WEBM }?.let { selectImported(it) }
+                else initialSources.firstOrNull { BuildConfig.TEST_WEBM_CANDIDATE || it.url != KNOWN_CRASHING_WEBM }?.let { selectImported(it) }
                     ?: setState { copy(phase = "FAILED", error = "SOURCE_UNAVAILABLE") }
                 created.state.collect { snapshot ->
                     if (snapshot.generation != sourceGeneration) return@collect

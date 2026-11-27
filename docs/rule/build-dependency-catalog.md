@@ -3,8 +3,8 @@
 机器可读的真实声明在 [版本目录](../../gradle/libs.versions.toml)、根/四模块 Gradle 与 [settings](../../settings.gradle.kts)。初始化记录见 [.template-lock.json](../../.template-lock.json)，不引用外部原工程。
 
 - 模板版本：0.4.0；能力：none；工具库：com.blankj:utilcodex:1.31.1。
-- 播放器：`com.ai.media:playback-android:0.1.0`，仅声明在 app；固定通过相邻 `PlaybackSDK-playtv/build/repository` Maven 仓库解析。选用此独立 SDK 以共享 GStreamer 播放内核；会引入 native 库和 SDK 清单中的 INTERNET 权限。其他机器构建时需先在相同相对位置准备该发布仓库。
-- 初始化时本机仓库 AAR SHA-256 为 `fb04deaa5f3bb147915dcf5da98bb74ffcb9b7500f303b90df20d4e95077453d`，对应 PlaybackSDK 历史受控验证产物；这是一次核对，并非 Gradle 校验锁。同版本如果被重新发布可发生覆盖，构建前应核对摘要；正式分发需不可变版本和可追溯的产物。SDK 当前仅 arm64-v8a、minSdk 26，尚未在电视设备验证。
+- 播放器：`com.ai.media:playback-android`，仅声明在 app；通过相邻 `PlaybackSDK-playtv/build/repository` Maven 仓库解析。debug 打包入口 `build-playtv.ps1` 先发布相邻 SDK 当前源码，生成唯一版本供该次构建使用，并校验 APK 的 `arm64-v8a` 和 `armeabi-v7a` 库；具体命令与 Gradle 进程边界见 AGENTS。脚本要求相邻 SDK 工程及两个 ABI 的已准备开发库，不会自动下载缺失文件。SDK 候选最低 API 26，设备验证状态以功能记录为准。
+- 初始化时 AAR `fb04deaa5f3bb147915dcf5da98bb74ffcb9b7500f303b90df20d4e95077453d` 是历史 arm64 产物，并非当前打包来源或验收证明。正式分发仍需独立版本和验收。
 - 构建组合：AGP/Kotlin 见版本目录；Gradle 8.13、JDK 17、compile/target/min SDK 35/35/26。
 - Gradle 版本采用 AGP 8.13 文档给出的默认/最低 8.13；并非复制源项目的 Wrapper 9.2.1。完整组合尚未构建验证。
 - 仓库集中在 settings，FAIL_ON_PROJECT_REPOS；本工程采用 `aliyun` 仓库配置。默认 aliyun 按顺序声明阿里云 HTTP public、jcenter、HTTPS public、JitPack，再接 Google/Maven Central；none 仅保留公共来源及所选能力的必要来源。插件仓库按顺序为受分组限制的 google、Maven Central、Gradle Plugin Portal。
@@ -40,7 +40,7 @@
 - `kotlinx-coroutines-android`: `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3`
 - `kotlinx-coroutines-core`: `org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3`
 - `material`: `com.google.android.material:material:1.12.0`
-- `playback-android`: `com.ai.media:playback-android:0.1.0`（本地仓库，已解析并参与 debug 构建）
+- `playback-android`: `com.ai.media:playback-android`（debug 打包时由入口指定唯一版本；默认坐标仅用于非打包解析）
 - `toolkit`: `com.blankj:utilcodex:1.31.1`
 
 2026-11-26 执行 `:app:assembleDebug --no-daemon --offline` 成功，APK SHA-256 `9c42f73f076bca13ff875bf16bf29abfffc2694281ea4389ec00257872c69bb9`，安装到 vivo V2244A / Android 14 成功；未运行播放或 TV 操作测试。构建提示三个 native 库未执行 strip，按原样打包。本次 wrapper PID 20236 和单次 daemon PID 15124 均已退出。依赖来源和镜像长期可用性、其他设备兼容仍需另行验证；没有新增测试/统计 SDK，也没有嵌入签名和凭据。

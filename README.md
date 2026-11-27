@@ -2,7 +2,7 @@
 
 独立 Android TV 播放器项目。工程现为模板技术预览，尚未实现 TV 播放页面或 GitHub/M3U/M3U8 播放；应用清单声明 TV 启动类别和触屏可选，电视桌面 banner、焦点交互及真实设备验证仍待完成。
 
-应用已声明 PlaybackSDK 的本地 Maven 坐标 `com.ai.media:playback-android:0.1.0`，默认仓库为 `../PlaybackSDK/build/repository`，可通过 Gradle 属性 `playbackMavenRepository` 指定其他本地仓库。本机初始化核对的 AAR 摘要及设备限制见 [依赖目录](docs/rule/build-dependency-catalog.md)。debug 包已在本机解析并构建、安装到一台 Android 手机；播放器代码尚未调用，TV 播放与遥控器行为尚未验证。播放内核的研发、源码和 WIP 继续由独立 PlaybackSDK 仓库维护。
+播放器来自相邻 `PlaybackSDK-playtv` 工程及其 `build/repository` 本地 Maven 仓库。Windows debug 打包使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1`，离线可加 `-Offline`；该入口先以唯一版本发布当前 SDK，再以 `-DTest=true` 构建 PlayTV，并检查 APK 内各架构的库与发布产物一致。直接 Gradle 打包和 Android Studio 默认 Run 会提示使用该入口；使用入口生成的 APK 安装运行。构建与设备验证状态见 [依赖目录](docs/rule/build-dependency-catalog.md) 和 [播放验证 Spec](docs/feature/test-tv-playback.md)。
 
 由本地 `android-xml-mvi` 模板 **0.4.0** 生成。实际配置、文件来源和摘要见 [.template-lock.json](.template-lock.json)。AI 先读 [AGENTS.md](AGENTS.md)。
 

@@ -6,6 +6,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.ai.playtv.R
+import com.ai.playtv.BuildConfig
 import com.ai.playtv.databinding.ItemTvPreviewSourceBinding
 import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.model.bean.domain.source.ImportedSource
@@ -24,8 +25,8 @@ class TvPreviewSourceAdapter(private val onSelect: (TvPreviewSourceRow) -> Unit)
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val row = getItem(position)
-        val available = row.source != TvPreviewSource.GITHUB_WEBM &&
-            row.imported?.url != TvPlaybackViewModel.KNOWN_CRASHING_WEBM
+        val available = BuildConfig.TEST_WEBM_CANDIDATE ||
+            (row.source != TvPreviewSource.GITHUB_WEBM && row.imported?.url != TvPlaybackViewModel.KNOWN_CRASHING_WEBM)
         holder.binding.root.isEnabled = available
         holder.binding.root.isSelected = row.selected
         holder.binding.root.isActivated = row.playing

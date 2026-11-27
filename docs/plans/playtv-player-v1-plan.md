@@ -1,6 +1,12 @@
 # PlayTV 首版播放器计划
 
-状态：计划，尚未开始实现。更新日期：2026-11-26。
+状态：阶段 0 与 GitHub 直链能力验证进行中。更新日期：2026-11-26。
+
+用户补充：首版最低 Android 8 / API 26，低版本后续兼容；优先 GitHub 仓库及直播、点播源的解析和播放，再支持 Emby，网盘以后处理。测试优先使用公开可检索的 GitHub 片源，单元测试一轮通过后进行 APK 专项。SDK 的受控跳转候选已在独立工作区完成一次手机实播与旧直链专项，尚未接入 PlayTV；详情见 `D:/work/as/PlaybackSDK-playtv/docs/network-playback.md`。这不等于 GitHub 仓库、HLS/DASH 或 Emby 已支持。
+
+2026-11-26 阶段 0 内核调查：PlayTV 当前 AAR 摘要与历史记录一致；PlaybackSDK 文档记录该产物对应 `c9f791d`，当前 SDK `master` 的 `10b474f` 另含未完成的缓存调查，不能当作该已验证产物的源码基线。本轮核对一条公开 GitHub 文件地址返回 302，目标 `raw.githubusercontent.com` 返回支持 Range 的 206；现有 SDK 源码对 `souphttpsrc` 关闭自动跳转并启用严格 TLS，受控跳转仍待实现和回归。当前源码插件清单没有显式列出 HLS/DASH；对已发布 AAR 的 native 库做字符串搜索未发现 `hlsdemux`/`dashdemux`，但不能仅凭字符串未命中断定插件未注册，真实设备验证仍待完成。PlayTV debug 验证页在 vivo 手机上观察到公开 MP4 画面，并用 ADB 模拟了暂停、恢复、前进和返回；尚未完成目标 TV、声音、故障和三轮验收，不代表阶段 1 完成。
+
+2026-11-26 最低版本评估：GenTV 的 TV launcher 声明 API 17，官方项目文档注明 Android 4.2 真机尚未验收；PlayTV 四模块和现有 PlaybackSDK 均为 API 26。SDK 的 `AudioFocusRequest` 和 AAudio 输出依赖 API 26，现有 AAR 仅含 arm64-v8a；本机 NDK 29 声明最低 API 21，本机预备上游库仅有 arm64。PlayTV 当前 AndroidX activity/core/recyclerview/fragment/appcompat AAR 声明最低 API 21。要覆盖 API 17，需分别处理 UI 依赖、低版本音频输出与音频焦点、native 工具链和上游库、32 位 ABI 及旧设备解码/TLS 能力，并实机验证；尚未修改最低版本或证明可行。后续网络验收增加公开 GitHub 文件和 Release 地址，并分别核对 3xx、最终媒体、Range、错误及取消，不能将桌面代理结果视为电视播放通过。
 
 ## 目标和范围
 
