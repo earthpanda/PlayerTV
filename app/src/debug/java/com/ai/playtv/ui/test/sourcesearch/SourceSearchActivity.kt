@@ -32,7 +32,7 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     private var renderedQuery: String? = null
     private var resetSelection = false
     private val adapter = SourceSearchAdapter({ viewModel.onEvent(SourceSearchEvent.Open(it)) },
-        { (lastKey ?: keyAt(9))?.requestFocus() }, ::maybeLoadMore)
+        { (lastKey ?: keyAt(9))?.requestFocus() }, ::maybeLoadMore, ::retryLoadMore)
     override fun createViewModelFactory(): ViewModelProvider.Factory = viewModelFactory(viewModelClass) {
         val app = application as SourcePreviewApplication
         SourceSearchViewModel(app.sourceHistory, app.sourceSearchIndex, restoredQuery)
@@ -51,6 +51,9 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
         artworkLoader = SearchArtworkLoader(application as SourcePreviewApplication)
         adapter.artworkLoader = artworkLoader
         binding.results.setNumColumns(4)
+        // Keep up to three rows of detached cards available for reuse during fast focus movement.
+        binding.results.recycledViewPool.setMaxRecycledViews(0, 12)
+        binding.results.setItemViewCacheSize(0)
         binding.results.adapter = adapter
         binding.results.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
@@ -58,11 +61,14 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
                     val last = (0 until recyclerView.childCount).maxOfOrNull {
                         recyclerView.getChildAdapterPosition(recyclerView.getChildAt(it))
                     } ?: RecyclerView.NO_POSITION
-                    maybeLoadMore(last)
+                    if (recyclerView.scrollState == RecyclerView.SCROLL_STATE_DRAGGING && viewModel.uiState.value.pageFailed) {
+                        retryLoadMore(last)
+                    } else {
+                        maybeLoadMore(last)
+                    }
                 }
             }
         })
-        binding.pageStatus.setOnClickListener { viewModel.onEvent(SourceSearchEvent.LoadMore) }
         val keys = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
         keys.forEachIndexed { index, char ->
             val key = TextView(this).apply {
@@ -115,6 +121,13 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
         if (state.hasMore && !state.loadingMore && !state.pageFailed && !state.searching &&
             position >= 0 && position >= state.rows.size - 8) viewModel.onEvent(SourceSearchEvent.LoadMore)
     }
+    private fun retryLoadMore(position: Int) {
+        val state = viewModel.uiState.value
+        if (state.pageFailed && state.hasMore && !state.loadingMore && !state.searching &&
+            adapter.currentList == state.rows && position >= 0 && position >= state.rows.size - 8) {
+            viewModel.onEvent(SourceSearchEvent.LoadMore)
+        }
+    }
     override fun onResume() {
         super.onResume()
         viewModel.onEvent(SourceSearchEvent.Resume)
@@ -135,10 +148,6 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
         binding.resultTitle.text = if (state.query.isNotBlank() && !state.failed && !state.loading && !state.searching)
             getString(if (state.hasMore) R.string.s_search_shown else R.string.s_search_count, state.rows.size) else ""
         binding.partial.visibility = if (state.partial && state.query.isNotBlank()) View.VISIBLE else View.GONE
-        binding.pageStatus.visibility = if (state.loadingMore || state.pageFailed) View.VISIBLE else View.GONE
-        binding.pageStatus.isFocusable = state.pageFailed
-        binding.pageStatus.isClickable = state.pageFailed
-        binding.pageStatus.setText(if (state.pageFailed) R.string.s_search_retry_more else R.string.s_search_loading_more)
         binding.message.text = when {
             state.loading -> getString(R.string.s_tv_history_loading)
             state.failed -> getString(R.string.s_search_failed)

@@ -67,7 +67,9 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         }
     }
     private val inputBack = object : OnBackPressedCallback(false) {
-        override fun handleOnBackPressed() = keyboard.hide()
+        override fun handleOnBackPressed() {
+            if (imeVisible) keyboard.hide() else binding.sourceTab.requestFocus()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -123,7 +125,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         binding.sourceUrl.setAdapter(repositoryAdapter)
         onBackPressedDispatcher.addCallback(this, inputBack)
         binding.sourceUrl.setOnFocusChangeListener { _, focused ->
-            inputBack.isEnabled = focused && imeVisible
+            inputBack.isEnabled = focused
             if (focused) {
                 keyboard.showAfterLayout(requestFocus = false)
             } else {
@@ -135,7 +137,6 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         ViewCompat.setOnApplyWindowInsetsListener(binding.sourceUrl) { _, insets ->
             val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
             imeVisible = visible
-            inputBack.isEnabled = visible && binding.sourceUrl.hasFocus()
             insets
         }
         binding.history.setNumColumns(1)

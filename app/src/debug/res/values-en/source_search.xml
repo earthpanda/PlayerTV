@@ -12,7 +12,5 @@
     <string name="s_search_failed">Could not read the record or content is unavailable</string>
     <string name="s_search_count">%1$d results</string>
     <string name="s_search_shown">%1$d results shown</string>
-    <string name="s_search_loading_more">Loading more…</string>
-    <string name="s_search_retry_more">Could not load more. Select to retry</string>
     <string name="s_search_partial">Some source records are incomplete; results may be missing</string>
 </resources>
