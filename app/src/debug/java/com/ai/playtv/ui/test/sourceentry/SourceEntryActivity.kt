@@ -62,10 +62,15 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             insets
         }
         val presets = listOf(
+            "https://github.com/qist/tvbox",
+            "https://github.com/52liulian/tvapp_store",
+            "https://github.com/Guovin/iptv-api",
+            "https://github.com/iptv-org/iptv",
+            "https://github.com/pan8664716/HGTV",
+            "https://github.com/LibreSpark/LibreTV",
             "https://github.com/Huanshere/VideoLingo",
             "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.m3u",
             "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv6.m3u",
-            "https://github.com/Guovin/iptv-api",
             "https://raw.githubusercontent.com/CCSH/IPTV/main/live_lite.m3u",
             "https://raw.githubusercontent.com/CCSH/IPTV/main/live.m3u",
             "https://raw.githubusercontent.com/CCSH/IPTV/main/live_platforms.m3u",

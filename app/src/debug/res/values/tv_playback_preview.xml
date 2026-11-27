@@ -82,10 +82,15 @@
     <string name="s_tv_import_required">请输入播放地址</string>
     <string-array name="tv_source_presets">
         <item>选择示例来源（可留空）</item>
+        <item>qist · TVBox 节目源仓库</item>
+        <item>52liulian · TVApp 节目源仓库</item>
+        <item>Guovin · IPTV 直播源仓库</item>
+        <item>iptv-org · IPTV 直播源仓库</item>
+        <item>HGTV · 红果 TV 仓库</item>
+        <item>LibreTV · 播放器项目</item>
         <item>VideoLingo · 仓库示例</item>
         <item>IPTV2025 · IPv4 列表</item>
         <item>IPTV2025 · IPv6 列表</item>
-        <item>Guovin · 生成工具仓库</item>
         <item>CCSH · 精简列表</item>
         <item>CCSH · 完整列表</item>
         <item>CCSH · 平台列表</item>

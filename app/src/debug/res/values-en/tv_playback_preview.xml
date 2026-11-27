@@ -67,10 +67,15 @@
     <string name="s_tv_import_required">Enter a source URL</string>
     <string-array name="tv_source_presets">
         <item>Select an example (optional)</item>
+        <item>qist · TVBox sources repository</item>
+        <item>52liulian · TVApp sources repository</item>
+        <item>Guovin · IPTV live sources repository</item>
+        <item>iptv-org · IPTV live sources repository</item>
+        <item>HGTV · short drama repository</item>
+        <item>LibreTV · player project</item>
         <item>VideoLingo · repository example</item>
         <item>IPTV2025 · IPv4 playlist</item>
         <item>IPTV2025 · IPv6 playlist</item>
-        <item>Guovin · generator repository</item>
         <item>CCSH · lite playlist</item>
         <item>CCSH · full playlist</item>
         <item>CCSH · platform playlist</item>
