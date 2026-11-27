@@ -6,8 +6,11 @@ plugins {
 }
 
 // The private key and credentials are kept outside the repository.
+val explicitSigningDirectory = providers.environmentVariable("PLAYTV_SIGNING_DIR").orNull
 val signingDirectory = file(providers.environmentVariable("PLAYTV_SIGNING_DIR")
     .orElse("${System.getProperty("user.home")}/.android/playtv-signing").get())
+val useProjectDebugSigning = explicitSigningDirectory != null ||
+    signingDirectory.resolve("playtv.p12").exists() || signingDirectory.resolve("signing.properties").exists()
 val signingProperties = Properties().apply {
     val propertiesFile = signingDirectory.resolve("signing.properties")
     if (propertiesFile.isFile) propertiesFile.inputStream().use { load(it) }
@@ -45,7 +48,7 @@ android {
     }
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("playtv")
+            if (useProjectDebugSigning) signingConfig = signingConfigs.getByName("playtv")
         }
         release {
             signingConfig = signingConfigs.getByName("playtv")

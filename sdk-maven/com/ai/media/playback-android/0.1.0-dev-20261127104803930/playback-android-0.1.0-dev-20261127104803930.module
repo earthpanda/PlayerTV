@@ -3,7 +3,7 @@
   "component": {
     "group": "com.ai.media",
     "module": "playback-android",
-    "version": "0.1.0-dev-20261127084929260",
+    "version": "0.1.0-dev-20261127104803930",
     "attributes": {
       "org.gradle.status": "release"
     }
@@ -40,8 +40,8 @@
       ],
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127084929260.aar",
-          "url": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "name": "playback-android-0.1.0-dev-20261127104803930.aar",
+          "url": "playback-android-0.1.0-dev-20261127104803930.aar",
           "size": 32532573,
           "sha512": "753d4412b10870d3486368c0c11c28e1fa452ef909e20507e28f7235c5770a92d21467dafa6f0a76614c27f10aa1458000b0e0d9c1b5d95c2c1c3cbb22204fe9",
           "sha256": "44cdeeec63531260748e7d2946304115a4215e2ed92a718ceeb6469b36cbbfbe",
@@ -83,8 +83,8 @@
       ],
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127084929260.aar",
-          "url": "playback-android-0.1.0-dev-20261127084929260.aar",
+          "name": "playback-android-0.1.0-dev-20261127104803930.aar",
+          "url": "playback-android-0.1.0-dev-20261127104803930.aar",
           "size": 32532573,
           "sha512": "753d4412b10870d3486368c0c11c28e1fa452ef909e20507e28f7235c5770a92d21467dafa6f0a76614c27f10aa1458000b0e0d9c1b5d95c2c1c3cbb22204fe9",
           "sha256": "44cdeeec63531260748e7d2946304115a4215e2ed92a718ceeb6469b36cbbfbe",
@@ -103,8 +103,8 @@
       },
       "files": [
         {
-          "name": "playback-android-0.1.0-dev-20261127084929260-sources.jar",
-          "url": "playback-android-0.1.0-dev-20261127084929260-sources.jar",
+          "name": "playback-android-0.1.0-dev-20261127104803930-sources.jar",
+          "url": "playback-android-0.1.0-dev-20261127104803930-sources.jar",
           "size": 51888,
           "sha512": "0c6fd7f460b3f33d6b59e0ead5b6d44527b83205ff60c41df224b83b73d2fa0fa53332d6f1fea1e559d1e961cb459a93b673de40b26eb74c567ae8928a6e002e",
           "sha256": "f8b53bb8cbb1e2b88fa5bbd97d5c59ed8a24a27ceb021455f3e6e8a85845a635",

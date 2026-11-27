@@ -16,7 +16,7 @@ powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1
 
 发布包使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1 -Release`；离线构建可加 `-Offline`。默认入口构建 debug 包并启用 `-DTest=true`；两种构建均对照 APK 与 SDK AAR 中的 32 位和 64 位原生库。直接 Gradle 打包或 Android Studio 默认 Run 会提示使用该入口；安装时使用本次入口成功生成的 APK。Linux/macOS 的等效打包入口尚未提供。
 
-debug 和 release 使用同一套项目签名。默认从当前用户目录的 `.android/playtv-signing/` 读取 `playtv.p12` 和 `signing.properties`；也可设置 `PLAYTV_SIGNING_DIR` 指向这两个文件所在的目录。属性文件包含 `storePassword`、`keyPassword` 和 `keyAlias`，私钥及密码不放入仓库，构建前需单独准备。更换机器时请安全备份并迁移原文件；重新生成密钥会导致旧应用无法直接升级。此前使用 Android 默认调试证书的包与此签名不同。debug 构建及证书已验证，release 入口仍待构建及证书验证。
+首次克隆后，debug 包默认使用 Android 本机调试签名，无需项目私钥。若本机已配置项目签名，debug 继续使用该签名，以便覆盖安装现有版本。release 始终需要项目签名。项目签名默认从当前用户目录的 `.android/playtv-signing/` 读取 `playtv.p12` 和 `signing.properties`；也可设置 `PLAYTV_SIGNING_DIR` 指向这两个文件所在的目录。属性文件包含 `storePassword`、`keyPassword` 和 `keyAlias`，私钥及密码不放入仓库；配置不完整时构建会失败，需补齐或移除该配置。不同签名的 APK 无法直接覆盖安装；更换机器时如需继续升级已有版本，应安全迁移原签名。release 入口仍待构建及证书验证。
 
 ## 播放 SDK
 
