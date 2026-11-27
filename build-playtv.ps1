@@ -2,7 +2,7 @@ param([switch]$Offline)
 
 $ErrorActionPreference = 'Stop'
 $projectDir = $PSScriptRoot
-$sdkDir = [IO.Path]::GetFullPath((Join-Path $projectDir '..\..\..\PlaybackSDK-playtv'))
+$sdkDir = [IO.Path]::GetFullPath((Join-Path $projectDir '..\PlaybackSDK-playtv'))
 $sdkRepository = Join-Path $projectDir 'sdk-maven'
 $sdkManifest = Join-Path $sdkRepository 'playback-sdk.json'
 $sdkHelper = Join-Path $projectDir 'tools\playback_sdk_repository.py'

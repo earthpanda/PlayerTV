@@ -1,3 +1,6 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+
 # Published Maven metadata and checksums must retain their original bytes.
 sdk-maven/** -text
 sdk-maven/playback-sdk.json text eol=lf

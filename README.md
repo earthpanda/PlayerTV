@@ -1,14 +1,14 @@
 # PlayTV
 
-PlayTV 是 GenTV 仓库中的独立 Android TV 播放器工程，应用 ID 为 `com.ai.playtv`，最低支持 Android 8（API 26）。工程位于 `launcher/playtv/`，拥有独立的 Gradle Wrapper 和 `app`、`base`、`model`、`support` 模块，不会随 GenTV 桌面或手机应用自动打包。
+PlayTV 是独立的 Android TV 播放器工程，应用 ID 为 `com.ai.playtv`，最低支持 Android 8（API 26）。本仓库拥有独立的 Gradle Wrapper 和 `app`、`base`、`model`、`support` 模块。
 
 当前 debug 包提供媒体来源输入与播放验证页面；GitHub、HTTPS 地址和播放列表等路径仍在逐步验证。已验证的设备、来源和未完成的回归见 [播放验证记录](docs/feature/test-tv-playback.md)，不能将测试页面视为完整发布版本。
 
 ## 构建 PlayTV
 
-用 Android Studio 打开 `launcher/playtv`，配置 JDK 17 和 Android SDK 35。工程使用 Gradle Wrapper；首次构建需要下载 Gradle 和相关依赖，或已有可用缓存。
+用 Android Studio 打开本仓库，配置 JDK 17 和 Android SDK 35。工程使用 Gradle Wrapper；首次构建需要下载 Gradle 和相关依赖，或已有可用缓存。
 
-在 Windows 的 `launcher/playtv` 目录执行：
+在 Windows 的项目根目录执行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1
@@ -20,7 +20,7 @@ powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1
 
 工程内的 `sdk-maven/` 保存了构建所需的 PlaybackSDK Maven 产物。没有本地 SDK 源码时，打包脚本直接使用这份产物。
 
-如需修改 SDK，可将其仓库克隆到 GenTV 仓库的同级目录，目录名须为 `PlaybackSDK-playtv`：
+如需修改 SDK，可将其仓库克隆到 PlayTV 仓库的同级目录，目录名须为 `PlaybackSDK-playtv`：
 
 ```powershell
 git clone --branch codex/playtv-network https://gitee.com/lin-dream/playback-sdk.git PlaybackSDK-playtv
@@ -37,7 +37,7 @@ python -X utf8 tools/prepare_upstream.py --android --abi arm64 --abi armv7
 
 ## 安装到设备
 
-成功构建的 APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。设备启用 ADB 并连接后，在 `launcher/playtv` 目录使用实际设备序列号安装：
+成功构建的 APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。设备启用 ADB 并连接后，在项目根目录使用实际设备序列号安装：
 
 ```powershell
 adb devices -l

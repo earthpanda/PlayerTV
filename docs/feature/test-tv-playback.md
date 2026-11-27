@@ -118,3 +118,9 @@
 随后按用户授权通过 `build-playtv.ps1 -Offline` 发布当前 SDK `0.1.0-dev-20261126130214105` 并生成 APK，双 ABI 库与 AAR 一致；32 位生成库反汇编确认 AES 常量表地址加载存在。APK SHA-256 `780322cb78e277a89f0eea71db4162dec995c885d91cccf3145f28e9d3ac137c`，已安装到该测试设备，设备 APK 摘要一致。构建结束后已确认本次 Gradle 进程退出。按用户最新要求只安装盒子，尚未进行候选播放复测，目标 20 次仍为 0 次。
 
 用户随后反馈盒子上看起来已经修复；该反馈不是本轮记录的专项复测，旧路径和 20 次分级验证仍待完成。
+
+## 2026-11-27 独立仓库迁移验证
+
+按用户要求迁回独立仓库，保留远程已有的播放页面改动、随项目维护的 SDK Maven 产物和双架构核对；构建入口的本地 SDK 路径改为与项目同级。隔离合并中，运行时代码与迁移前目标远程的对应版本一致；另一本地工作区的未推送提交及未提交修改未纳入本次验证。
+
+本轮在独立目录运行 `build-playtv.ps1`，本地 SDK 未变化时复用版本 `0.1.0-dev-20261127013305384`，构建与 APK/AAR 双架构库对照通过，日志 `build/verification/packaging/20261127024957713-app.log`。在没有相邻 SDK 的隔离副本再次构建并完成相同对照，日志 `build/verification/without-sdk-migration/PlayTV/build/verification/packaging/20261127025230854-app.log`；该验证使用本机 Android SDK 和 Gradle 缓存。两次 APK SHA-256 均为 `594328f5feb4a63f9c0b638f88580a525ab896c5b2bf3a6ba23137ec2bf997b8`，相关 Gradle 进程均已退出。未安装该 APK、未运行单元测试或设备交互回归。
