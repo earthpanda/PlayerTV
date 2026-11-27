@@ -13,7 +13,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.ViewModelProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
 import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.base.ui.message.MessageController
@@ -126,7 +125,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.toggle.setOnClickListener { showControls(); viewModel.onEvent(TvPlaybackEvent.Toggle) }
         onBackPressedDispatcher.addCallback(this, playlistBack)
         binding.playlistOverlay.setOnClickListener { closePlaylist() }
-        binding.playlist.layoutManager = LinearLayoutManager(this)
+        binding.playlist.setNumColumns(1)
         binding.playlist.adapter = sourceAdapter
         binding.progress.onTracking = { target ->
             progressTracking = true
@@ -251,7 +250,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.playlist.post {
             if (!isFinishing && !isDestroyed && binding.playlistOverlay.visibility == View.VISIBLE) {
                 val index = sourceAdapter.currentList.indexOfFirst { it.id == state.activeId }.coerceAtLeast(0)
-                binding.playlist.scrollToPosition(index)
+                binding.playlist.setSelectedPosition(index)
                 binding.playlist.post {
                     if (!isFinishing && !isDestroyed && binding.playlistOverlay.visibility == View.VISIBLE) {
                         binding.playlist.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus()

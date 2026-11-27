@@ -3,14 +3,17 @@ package com.ai.playtv.ui.test.sourcesearch
 import android.view.LayoutInflater
 import android.view.KeyEvent
 import android.view.ViewGroup
+import android.text.TextUtils
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.ai.playtv.databinding.ItemSourceSearchBinding
+import com.ai.playtv.base.util.pt
 import com.ai.playtv.model.contract.sourcesearch.SearchRow
 import kotlinx.coroutines.Job
 
-class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val onLeft: () -> Unit) :
+class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val onLeft: () -> Unit,
+    private val onFocused: (Int) -> Unit) :
     ListAdapter<SearchRow, SourceSearchAdapter.Holder>(DIFF) {
     var artworkLoader: SearchArtworkLoader? = null
     class Holder(val binding: ItemSourceSearchBinding) : RecyclerView.ViewHolder(binding.root) {
@@ -24,11 +27,19 @@ class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val o
         holder.binding.poster.setImageDrawable(null)
         holder.artworkJob = artworkLoader?.bind(holder.binding.poster, row)
         holder.binding.title.text = row.name
-        val scale = if (holder.binding.root.hasFocus()) 1.2f else 1f
+        val focused = holder.binding.root.hasFocus()
+        val scale = if (focused) 1.2f else 1f
         holder.binding.root.animate().cancel()
         holder.binding.root.scaleX = scale
         holder.binding.root.scaleY = scale
+        holder.binding.root.translationZ = if (focused) 12.pt.toFloat() else 0f
+        holder.binding.title.ellipsize = if (focused) TextUtils.TruncateAt.MARQUEE else TextUtils.TruncateAt.END
+        holder.binding.title.isSelected = focused
         holder.binding.root.setOnFocusChangeListener { view, focused ->
+            view.translationZ = if (focused) 12.pt.toFloat() else 0f
+            holder.binding.title.ellipsize = if (focused) TextUtils.TruncateAt.MARQUEE else TextUtils.TruncateAt.END
+            holder.binding.title.isSelected = focused
+            if (focused && holder.bindingAdapterPosition != RecyclerView.NO_POSITION) onFocused(holder.bindingAdapterPosition)
             view.animate().scaleX(if (focused) 1.2f else 1f).scaleY(if (focused) 1.2f else 1f)
                 .setDuration(150).start()
         }
@@ -44,6 +55,13 @@ class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val o
         holder.artworkJob?.cancel()
         holder.artworkJob = null
         holder.binding.poster.setImageDrawable(null)
+        holder.binding.root.animate().cancel()
+        holder.binding.root.setOnFocusChangeListener(null)
+        holder.binding.root.translationZ = 0f
+        holder.binding.root.scaleX = 1f
+        holder.binding.root.scaleY = 1f
+        holder.binding.title.isSelected = false
+        holder.binding.title.ellipsize = TextUtils.TruncateAt.END
         super.onViewRecycled(holder)
     }
     private companion object {

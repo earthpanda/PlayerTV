@@ -11,5 +11,8 @@
     <string name="s_search_empty_results">没有找到匹配的内容</string>
     <string name="s_search_failed">读取记录失败或内容已不可用</string>
     <string name="s_search_count">找到 %1$d 个结果</string>
+    <string name="s_search_shown">已显示 %1$d 个结果</string>
+    <string name="s_search_loading_more">正在加载更多…</string>
+    <string name="s_search_retry_more">加载失败，点击重试</string>
     <string name="s_search_partial">部分播放源的记录不完整，搜索结果可能不全</string>
 </resources>

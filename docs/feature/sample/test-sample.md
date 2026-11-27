@@ -21,3 +21,7 @@
 - Effect 容量：基础类固定最多缓存 64 条瞬时 Effect，`setEffect` 返回是否入队；满/关闭时拒绝新项，不为发送启动协程。样例仅发送可丢弃的 Toast，失败事实仍存 State，关键业务完成不可依赖此队列。
 - 验证边界：本轮只做源码/资源/生成结果静态核对；首屏失败、刷新失败、分页失败、快速成功和取消路径列为后续运行验证场景。本地数据源仍不主动制造异常，不声称已经运行覆盖这些分支。
 - 实际状态：源文件已生成，未构建/运行验证；仓库可达性、完整构建组合、旋转/返回时序和手势仍需在用户授权后验证。失败分支已表达，但本地样例未人为制造失败，不声称网络异常已验证。
+
+2026-11-27 根据用户 TV 项目列表要求，样例列表改为单列 AndroidX Leanback `VerticalGridView`；仍使用 `SampleAdapter` / `ListAdapter` 和原数据、刷新、分页与点击契约。需回归首屏、刷新、加载更多、点击及遥控焦点；debug 清单移除了样例启动入口，设备验证须使用对应 main/release 入口，不能把 debug 其他页面结果当作样例验证。
+
+本轮 `:app:compileReleaseKotlin --no-daemon` 成功，日志 `build/verification/search-leanback-release-compile.log`；没有安装 release 包或执行样例交互，仍待设备回归。

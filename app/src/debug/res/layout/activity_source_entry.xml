@@ -49,7 +49,7 @@
             <TextView android:id="@+id/history_message" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:layout_marginTop="4pt" android:textColor="#CCCCCC" android:textSize="12pt" />
             <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
-                <androidx.recyclerview.widget.RecyclerView android:id="@+id/history" android:layout_width="match_parent"
+                <androidx.leanback.widget.VerticalGridView android:id="@+id/history" android:layout_width="match_parent"
                     android:layout_height="match_parent" android:clipToPadding="false"
                     android:descendantFocusability="afterDescendants" android:focusable="true" />
                 <LinearLayout android:id="@+id/history_empty" android:layout_width="wrap_content"

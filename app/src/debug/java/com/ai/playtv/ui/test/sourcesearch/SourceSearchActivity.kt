@@ -10,7 +10,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.ai.playtv.R
 import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.base.util.setTextPtSize
@@ -29,8 +29,10 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     private var lastKey: View? = null
     private var lastKeyIndex = 9
     private lateinit var artworkLoader: SearchArtworkLoader
+    private var renderedQuery: String? = null
+    private var resetSelection = false
     private val adapter = SourceSearchAdapter({ viewModel.onEvent(SourceSearchEvent.Open(it)) },
-        { (lastKey ?: keyAt(9))?.requestFocus() })
+        { (lastKey ?: keyAt(9))?.requestFocus() }, ::maybeLoadMore)
     override fun createViewModelFactory(): ViewModelProvider.Factory = viewModelFactory(viewModelClass) {
         SourceSearchViewModel((application as SourcePreviewApplication).sourceHistory, restoredQuery)
     }
@@ -47,8 +49,19 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     override fun initView() {
         artworkLoader = SearchArtworkLoader(application as SourcePreviewApplication)
         adapter.artworkLoader = artworkLoader
-        binding.results.layoutManager = GridLayoutManager(this, 4)
+        binding.results.setNumColumns(4)
         binding.results.adapter = adapter
+        binding.results.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (dy > 0) {
+                    val last = (0 until recyclerView.childCount).maxOfOrNull {
+                        recyclerView.getChildAdapterPosition(recyclerView.getChildAt(it))
+                    } ?: RecyclerView.NO_POSITION
+                    maybeLoadMore(last)
+                }
+            }
+        })
+        binding.pageStatus.setOnClickListener { viewModel.onEvent(SourceSearchEvent.LoadMore) }
         val keys = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
         keys.forEachIndexed { index, char ->
             val key = TextView(this).apply {
@@ -60,8 +73,11 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
                 setOnFocusChangeListener { v, focused -> if (focused) { lastKey = v; lastKeyIndex = index } }
                 setOnClickListener { updateQuery(viewModel.uiState.value.query + char) }
                 setOnKeyListener { _, code, event ->
-                    if (code == KeyEvent.KEYCODE_DPAD_RIGHT && event.action == KeyEvent.ACTION_DOWN && index % 6 == 5 && adapter.itemCount > 0) {
-                        binding.results.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() ?: false
+                    val state = viewModel.uiState.value
+                    if (code == KeyEvent.KEYCODE_DPAD_RIGHT && event.action == KeyEvent.ACTION_DOWN && index % 6 == 5 &&
+                        state.query.isNotBlank() && !state.searching && state.rows.isNotEmpty() && adapter.currentList == state.rows &&
+                        binding.results.visibility == View.VISIBLE) {
+                        binding.results.requestFocus()
                     } else if (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && index >= 30) {
                         (if (index % 6 < 3) binding.clear else binding.delete).requestFocus()
                     } else false
@@ -93,6 +109,11 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     }
     private fun keyAt(index: Int): View? = (binding.keyboard.getChildAt(index) as? FrameLayout)?.getChildAt(0)
     private fun updateQuery(value: String) = viewModel.onEvent(SourceSearchEvent.Query(value))
+    private fun maybeLoadMore(position: Int) {
+        val state = viewModel.uiState.value
+        if (state.hasMore && !state.loadingMore && !state.pageFailed && !state.searching &&
+            position >= 0 && position >= state.rows.size - 8) viewModel.onEvent(SourceSearchEvent.LoadMore)
+    }
     override fun onResume() {
         super.onResume()
         viewModel.onEvent(SourceSearchEvent.Resume)
@@ -101,10 +122,22 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
         if (binding.searchInput.text.toString() != state.query) {
             binding.searchInput.text = state.query
         }
-        adapter.submitList(state.rows)
+        if (renderedQuery != state.query) resetSelection = true
+        renderedQuery = state.query
+        adapter.submitList(state.rows) {
+            if (resetSelection && state.rows.isNotEmpty() && viewModel.uiState.value.query == state.query &&
+                viewModel.uiState.value.rows == state.rows) {
+                resetSelection = false
+                binding.results.setSelectedPosition(0)
+            }
+        }
         binding.resultTitle.text = if (state.query.isNotBlank() && !state.failed && !state.loading && !state.searching)
-            getString(R.string.s_search_count, state.rows.size) else ""
-        binding.partial.visibility = if (state.partial) View.VISIBLE else View.GONE
+            getString(if (state.hasMore) R.string.s_search_shown else R.string.s_search_count, state.rows.size) else ""
+        binding.partial.visibility = if (state.partial && state.query.isNotBlank()) View.VISIBLE else View.GONE
+        binding.pageStatus.visibility = if (state.loadingMore || state.pageFailed) View.VISIBLE else View.GONE
+        binding.pageStatus.isFocusable = state.pageFailed
+        binding.pageStatus.isClickable = state.pageFailed
+        binding.pageStatus.setText(if (state.pageFailed) R.string.s_search_retry_more else R.string.s_search_loading_more)
         binding.message.text = when {
             state.loading -> getString(R.string.s_tv_history_loading)
             state.failed -> getString(R.string.s_search_failed)

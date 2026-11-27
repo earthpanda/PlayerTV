@@ -2,7 +2,6 @@ package com.ai.playtv.ui.test.sample
 
 import android.widget.Toast
 import androidx.lifecycle.ViewModelProvider
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
 import com.ai.playtv.databinding.ActivitySampleBinding
 import com.ai.playtv.di.viewModelFactory
@@ -30,7 +29,7 @@ class SampleActivity : BaseMviActivity<ActivitySampleBinding, SampleState, Sampl
 
     /** Bind plain refresh/load-more actions when the optional gesture capability is absent. */
     override fun initView() {
-        binding.list.layoutManager = LinearLayoutManager(this)
+        binding.list.setNumColumns(1)
         binding.list.adapter = adapter
         binding.refreshAction.setOnClickListener { viewModel.onEvent(SampleEvent.Refresh) }
         binding.loadMoreAction.setOnClickListener { viewModel.onEvent(SampleEvent.LoadMore) }

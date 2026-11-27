@@ -22,7 +22,7 @@
     <TextView android:id="@+id/loadMoreAction" style="@style/Widget.Template.TextAction"
         android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/s_sample_load_more"
         app:layout_constraintTop_toTopOf="@id/refreshAction" app:layout_constraintEnd_toEndOf="parent" />
-    <androidx.recyclerview.widget.RecyclerView android:id="@+id/list"
+    <androidx.leanback.widget.VerticalGridView android:id="@+id/list"
         android:layout_width="0dp" android:layout_height="0dp"
         android:clipToPadding="false"
         app:layout_constraintTop_toBottomOf="@id/refreshAction" app:layout_constraintBottom_toBottomOf="parent"

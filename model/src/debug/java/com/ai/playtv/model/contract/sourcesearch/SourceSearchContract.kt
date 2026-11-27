@@ -9,11 +9,13 @@ data class SourceSearchState(
     val query: String = "", val rows: List<SearchRow> = emptyList(),
     val loading: Boolean = true, val failed: Boolean = false,
     val hasItems: Boolean = false, val partial: Boolean = false, val opening: Boolean = false,
-    val searching: Boolean = false,
+    val searching: Boolean = false, val loadingMore: Boolean = false, val hasMore: Boolean = false,
+    val pageFailed: Boolean = false,
 ) : UiState
 sealed interface SourceSearchEvent : UiEvent {
     data class Query(val value: String) : SourceSearchEvent
     data class Open(val row: SearchRow) : SourceSearchEvent
+    data object LoadMore : SourceSearchEvent
     data object Resume : SourceSearchEvent
 }
 sealed interface SourceSearchEffect : UiEffect {

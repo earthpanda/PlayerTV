@@ -15,7 +15,6 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
 import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.base.ui.loading.OperationLoadingController
@@ -105,7 +104,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             inputBack.isEnabled = visible && binding.sourceUrl.hasFocus()
             insets
         }
-        binding.history.layoutManager = LinearLayoutManager(this)
+        binding.history.setNumColumns(1)
         binding.history.adapter = historyAdapter
         binding.historyTab.setOnFocusChangeListener { _, focused -> if (focused && !updatingTab) selectTab(HomeTab.HISTORY) }
         binding.sourceTab.setOnFocusChangeListener { _, focused -> if (focused && !updatingTab) selectTab(HomeTab.SOURCES) }
@@ -210,7 +209,7 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             binding.addSource.requestFocus()
         } else if (historyAdapter.currentList.isNotEmpty()) {
             val index = historyAdapter.currentList.indexOfFirst { it.id == lastHistoryFocus }.coerceAtLeast(0)
-            binding.history.scrollToPosition(index)
+            binding.history.setSelectedPosition(index)
             binding.history.post {
                 if (!isFinishing && !isDestroyed && selectedTab == HomeTab.HISTORY && binding.historyTab.hasFocus()) {
                     val item = binding.history.findViewHolderForAdapterPosition(index)?.itemView

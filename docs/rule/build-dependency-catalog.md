@@ -37,6 +37,7 @@
 - `androidx-lifecycle-runtime-ktx`: `androidx.lifecycle:lifecycle-runtime-ktx:2.8.6`
 - `androidx-lifecycle-viewmodel-ktx`: `androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6`
 - `androidx-recyclerview`: `androidx.recyclerview:recyclerview:1.4.0`
+- `androidx-leanback`: `androidx.leanback:leanback:1.2.0`，app 使用，供电视遥控器列表及技术样例使用；依赖解析、构建和设备回归以功能记录为准。
 - `kotlinx-coroutines-android`: `org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3`
 - `kotlinx-coroutines-core`: `org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3`
 - `material`: `com.google.android.material:material:1.12.0`

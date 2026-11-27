@@ -5,22 +5,22 @@ import android.icu.lang.UCharacter
 import androidx.lifecycle.viewModelScope
 import com.ai.playtv.domain.BaseMviViewModel
 import com.ai.playtv.model.contract.sourcesearch.*
+import com.ai.playtv.model.bean.domain.source.SourceHistoryEntry
+import com.ai.playtv.model.storage.source.SourceHistorySnapshot
 import com.ai.playtv.model.storage.source.SourceHistoryStore
 import java.security.MessageDigest
 import java.text.Normalizer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuery: String) :
     BaseMviViewModel<SourceSearchState, SourceSearchEvent, SourceSearchEffect>(SourceSearchState(query = initialQuery)) {
-    private val query = MutableStateFlow(currentState.query)
+    private var snapshot = SourceHistorySnapshot()
+    private var session: SearchSession? = null
+    private var searchJob: Job? = null
     private val restricted = listOf(
         "4f7489771c3c13c30b9972380c767c48a4dfd00ba4c6770a943479a18d0e3ba3",
         "3946bc6e02fef8726b19ee574f0df484505086117bc9d877dd4228da710bd547",
@@ -30,39 +30,12 @@ class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuer
         "c5d6c441a89fb8886b8b1abb8f1fdcd497ade4e02c54b9382ce0e0cc6ba38991",
         "72974417465b5c5d888e57cad4672de2e3d8cab2faf8f5fb751de83c58e09c78",
     ).map { hex -> hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray() }
-    private data class IndexedRow(val row: SearchRow, val latin: String, val initials: String)
+    private class SearchSession(val query: String, val entries: List<SourceHistoryEntry>, var cursor: SearchCursor = SearchCursor())
     init {
         viewModelScope.launch {
-            var indexedSnapshot: Any? = null
-            var index = emptyList<IndexedRow>()
-            combine(history.state, query) { snapshot, value -> snapshot to value }.collectLatest { (snapshot, value) ->
-                val rows = withContext(Dispatchers.Default) {
-                    val needle = value.trim()
-                    if (indexedSnapshot !== snapshot) {
-                        val transliterator = Transliterator.getInstance("Han-Latin; Latin-ASCII")
-                        val updated = mutableListOf<IndexedRow>()
-                        for (entry in snapshot.entries) for (item in entry.items) {
-                            coroutineContext.ensureActive()
-                            val name = item.name.take(512)
-                            if (isRestricted(name)) continue
-                            val words = transliterator.transliterate(name).split(Regex("[^A-Za-z0-9]+"))
-                                .filter { it.isNotEmpty() }
-                            val revision = if (item.channelId == null && item.logoUrl == null) null else MessageDigest.getInstance("SHA-256").digest(
-                                (item.channelId.orEmpty() + "\u0000" + item.logoUrl.orEmpty()).toByteArray(Charsets.UTF_8)
-                            ).joinToString("") { "%02x".format(it.toInt() and 0xff) }
-                            updated.add(IndexedRow(SearchRow(entry.id, item.id, name, revision),
-                                words.joinToString(""), words.joinToString("") { it.take(1) }))
-                        }
-                        index = updated
-                        indexedSnapshot = snapshot
-                    }
-                    if (needle.isEmpty()) emptyList() else index.filter {
-                        it.row.name.contains(needle, true) || it.latin.contains(needle, true) || it.initials.contains(needle, true)
-                    }.map { it.row }
-                }
-                setState { copy(query = value, rows = rows, loading = snapshot.loading,
-                    failed = snapshot.failed, hasItems = snapshot.entries.any { it.items.isNotEmpty() },
-                    partial = snapshot.entries.any { it.partial }, searching = false) }
+            history.state.collect { newSnapshot ->
+                snapshot = newSnapshot
+                startSearch(currentState.query)
             }
         }
         viewModelScope.launch {
@@ -73,12 +46,13 @@ class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuer
         when (event) {
             is SourceSearchEvent.Query -> {
                 val value = event.value.take(40)
-                if (value == query.value) return
-                query.value = value
-                setState { copy(query = value, rows = emptyList(), searching = true, failed = false) }
+                if (value == currentState.query) return
+                startSearch(value)
             }
             is SourceSearchEvent.Open -> {
-                if (currentState.opening) return
+                if (currentState.opening || currentState.query.isBlank() || currentState.searching ||
+                    event.row !in currentState.rows) return
+                val selectedQuery = currentState.query
                 setState { copy(opening = true) }
                 viewModelScope.launch {
                     var launched = false
@@ -86,9 +60,11 @@ class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuer
                         val entry = history.find(event.row.historyId)
                         if (entry?.items?.none { it.id == event.row.itemId } != false) {
                             setState { copy(failed = true) }
+                        } else if (currentState.query != selectedQuery) {
+                            return@launch
                         } else if (history.open(event.row.historyId)?.items?.none { it.id == event.row.itemId } != false) {
                             setState { copy(failed = true) }
-                        } else {
+                        } else if (currentState.query == selectedQuery) {
                             launched = setEffect(SourceSearchEffect.OpenPlayer(event.row.historyId, event.row.itemId))
                             if (!launched) setState { copy(failed = true) }
                         }
@@ -97,7 +73,57 @@ class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuer
                     finally { if (!launched) setState { copy(opening = false) } }
                 }
             }
+            SourceSearchEvent.LoadMore -> session?.let { loadPage(it, first = false) }
             SourceSearchEvent.Resume -> setState { copy(opening = false) }
+        }
+    }
+    private fun startSearch(value: String) {
+        searchJob?.cancel()
+        session = null
+        val canSearch = value.isNotBlank() && !snapshot.loading && !snapshot.failed
+        setState { copy(query = value, rows = emptyList(), loading = snapshot.loading,
+            failed = snapshot.failed, hasItems = snapshot.entries.any { it.items.isNotEmpty() },
+            partial = snapshot.entries.any { it.partial }, searching = canSearch,
+            loadingMore = false, hasMore = false, pageFailed = false) }
+        if (canSearch) {
+            val next = SearchSession(value, snapshot.entries)
+            session = next
+            loadPage(next, first = true)
+        }
+    }
+    private fun loadPage(active: SearchSession, first: Boolean) {
+        if (session !== active || (!first && (!currentState.hasMore || currentState.loadingMore))) return
+        if (!first) setState { copy(loadingMore = true, pageFailed = false) }
+        val start = active.cursor
+        searchJob = viewModelScope.launch {
+            try {
+                val page = withContext(Dispatchers.Default) { searchPage(active.entries, active.query.trim(), start) }
+                if (session !== active) return@launch
+                active.cursor = page.cursor
+                setState { copy(rows = if (first) page.rows else rows + page.rows,
+                    searching = false, loadingMore = false, hasMore = page.hasMore) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {
+                if (session === active) setState { copy(searching = false, loadingMore = false,
+                    failed = first, pageFailed = !first) }
+            }
+        }
+    }
+    private suspend fun searchPage(entries: List<SourceHistoryEntry>, needle: String, start: SearchCursor): SearchPage<SearchRow> {
+        val transliterator = Transliterator.getInstance("Han-Latin; Latin-ASCII")
+        return scanSearchPage(entries.map { it.items }, start, 20) { source, candidate ->
+            val name = candidate.name.take(512)
+            val direct = name.contains(needle, ignoreCase = true)
+            val words = if (direct) emptyList() else transliterator.transliterate(name)
+                .split(Regex("[^A-Za-z0-9]+")) .filter { it.isNotEmpty() }
+            val matches = direct || words.joinToString("").contains(needle, true) ||
+                words.joinToString("") { it.take(1) }.contains(needle, true)
+            if (matches && !isRestricted(name)) {
+                val revision = if (candidate.channelId == null && candidate.logoUrl == null) null else MessageDigest.getInstance("SHA-256").digest(
+                    (candidate.channelId.orEmpty() + "\u0000" + candidate.logoUrl.orEmpty()).toByteArray(Charsets.UTF_8)
+                ).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                SearchRow(entries[source].id, candidate.id, name, revision)
+            } else null
         }
     }
     private fun isRestricted(value: String): Boolean {

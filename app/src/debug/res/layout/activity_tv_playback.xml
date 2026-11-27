@@ -59,7 +59,7 @@
                 android:text="@string/s_tv_preview_playlist" android:textColor="#FFFFFF" android:textSize="18pt" />
             <TextView android:id="@+id/import_status" android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:textColor="#CCCCCC" android:textSize="11pt" />
-            <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist" android:layout_width="match_parent"
+            <androidx.leanback.widget.VerticalGridView android:id="@+id/playlist" android:layout_width="match_parent"
                 android:layout_height="0dp" android:layout_marginTop="12pt" android:layout_weight="1" />
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
