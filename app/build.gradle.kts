@@ -1,6 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+}
+
+// The private key and credentials are kept outside the repository.
+val signingDirectory = file(providers.environmentVariable("PLAYTV_SIGNING_DIR")
+    .orElse("${System.getProperty("user.home")}/.android/playtv-signing").get())
+val signingProperties = Properties().apply {
+    val propertiesFile = signingDirectory.resolve("signing.properties")
+    if (propertiesFile.isFile) propertiesFile.inputStream().use { load(it) }
 }
 
 android {
@@ -24,8 +34,21 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    signingConfigs {
+        create("playtv") {
+            storeFile = signingDirectory.resolve("playtv.p12")
+            storeType = "PKCS12"
+            storePassword = signingProperties.getProperty("storePassword")
+            keyAlias = signingProperties.getProperty("keyAlias")
+            keyPassword = signingProperties.getProperty("keyPassword")
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("playtv")
+        }
         release {
+            signingConfig = signingConfigs.getByName("playtv")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

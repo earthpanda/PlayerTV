@@ -38,7 +38,9 @@ class SourceRepositoryTest {
         var repositoryFailure: Exception? = null
         val redirects = mutableMapOf<String, String>()
         var beforeContent: suspend (String) -> Unit = {}
+        var beforeRepository: suspend () -> Unit = {}
         override suspend fun repository(owner: String, repo: String): GithubRepositoryDto {
+            beforeRepository()
             repositoryFailure?.let { throw it }
             return GithubRepositoryDto("main")
         }
@@ -217,9 +219,11 @@ class SourceRepositoryTest {
         val entered = CompletableDeferred<Unit>()
         val stopped = CompletableDeferred<Unit>()
         val gate = CompletableDeferred<Unit>()
-        fake.beforeContent = {
-            entered.complete(Unit)
-            try { gate.await() } finally { stopped.complete(Unit) }
+        fake.beforeContent = { url ->
+            if (url == "https://raw.githubusercontent.com/example/repo/main/README.md") {
+                entered.complete(Unit)
+                try { gate.await() } finally { stopped.complete(Unit) }
+            }
         }
         val releases = java.util.concurrent.atomic.AtomicInteger()
         val session = SourceDiscoverySession(SourceRepository(fake), "https://github.com/example/repo", { releases.incrementAndGet() }, Dispatchers.Default)
@@ -231,5 +235,41 @@ class SourceRepositoryTest {
         withTimeout(3_000) { while (releases.get() == 0) kotlinx.coroutines.yield() }
         assertEquals(1, releases.get())
         assertFalse(session.state.value.running)
+    }
+
+    @Test fun readmeCandidateIsPublishedBeforeWaitingForRepositoryApi() = runBlocking {
+        val fake = FakeService()
+        fake.bodies["https://raw.githubusercontent.com/example/repo/HEAD/README.md"] =
+            "text/plain" to "[video](https://example.org/first.mp4)"
+        val apiGate = CompletableDeferred<Unit>()
+        fake.beforeRepository = { apiGate.await() }
+        val first = CompletableDeferred<List<String>>()
+        val task = launch(Dispatchers.Default) {
+            SourceRepository(fake).discover("https://github.com/example/repo") {
+                if (it.items.isNotEmpty()) first.complete(it.items.map { item -> item.url })
+            }
+        }
+        assertEquals(listOf("https://example.org/first.mp4"), withTimeout(3_000) { first.await() })
+        assertFalse(task.isCompleted)
+        apiGate.complete(Unit)
+        withTimeout(3_000) { task.join() }
+    }
+
+    @Test fun rateLimitedApiFallsBackToRenderedReadmeAndKeepsTheReason() = runBlocking {
+        val fake = FakeService()
+        val raw = okhttp3.Response.Builder()
+            .request(Request.Builder().url("https://api.github.com/repos/example/repo").build())
+            .protocol(Protocol.HTTP_1_1).code(403).message("Forbidden")
+            .header("X-RateLimit-Remaining", "0").build()
+        fake.repositoryFailure = retrofit2.HttpException(Response.error<GithubRepositoryDto>("".toResponseBody(), raw))
+        fake.bodies["https://github.com/example/repo"] = "text/html" to
+            "<a href='https://example.org/chrome.mp4'>chrome</a>" +
+            "<article class='markdown-body'><a href='https://example.org/video.mp4'>video</a></article>"
+        val session = SourceDiscoverySession(SourceRepository(fake), "https://github.com/example/repo", {}, Dispatchers.Default)
+        val result = withTimeout(3_000) { session.state.first { !it.running } }
+        assertEquals(listOf("https://example.org/video.mp4"), result.result?.items?.map { it.url })
+        assertEquals("RATE_LIMIT", result.error)
+        assertTrue(result.result?.partial == true)
+        session.close()
     }
 }

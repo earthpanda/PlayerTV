@@ -14,7 +14,9 @@ PlayTV 是独立的 Android TV 播放器工程，应用 ID 为 `com.ai.playtv`�
 powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1
 ```
 
-离线构建可加 `-Offline`。该入口构建 debug 包、启用 `-DTest=true`，并对照 APK 与 SDK AAR 中的 32 位和 64 位原生库。直接 Gradle 打包或 Android Studio 默认 Run 会提示使用该入口；安装时使用本次入口成功生成的 APK。Linux/macOS 的等效打包入口尚未提供。
+发布包使用 `powershell -ExecutionPolicy Bypass -File .\build-playtv.ps1 -Release`；离线构建可加 `-Offline`。默认入口构建 debug 包并启用 `-DTest=true`；两种构建均对照 APK 与 SDK AAR 中的 32 位和 64 位原生库。直接 Gradle 打包或 Android Studio 默认 Run 会提示使用该入口；安装时使用本次入口成功生成的 APK。Linux/macOS 的等效打包入口尚未提供。
+
+debug 和 release 使用同一套项目签名。默认从当前用户目录的 `.android/playtv-signing/` 读取 `playtv.p12` 和 `signing.properties`；也可设置 `PLAYTV_SIGNING_DIR` 指向这两个文件所在的目录。属性文件包含 `storePassword`、`keyPassword` 和 `keyAlias`，私钥及密码不放入仓库，构建前需单独准备。更换机器时请安全备份并迁移原文件；重新生成密钥会导致旧应用无法直接升级。此前使用 Android 默认调试证书的包与此签名不同。debug 构建及证书已验证，release 入口仍待构建及证书验证。
 
 ## 播放 SDK
 
@@ -45,7 +47,7 @@ $deviceSerial = '在此填写设备序列号'
 adb -s $deviceSerial install -r .\app\build\outputs\apk\debug\app-debug.apk
 ```
 
-安装命令返回 `Success` 表示安装成功。调试包的签名由本机生成；如果设备上的已有版本签名不同，覆盖安装会失败，应先确认处理方式。其他项目可通过应用 ID `com.ai.playtv` 识别已安装的 PlayTV；安装和实际播放能力需要分别验证。
+安装命令返回 `Success` 表示安装成功。如果设备上的已有版本签名不同，覆盖安装会失败，应先确认处理方式。其他项目可通过应用 ID `com.ai.playtv` 识别已安装的 PlayTV；安装和实际播放能力需要分别验证。
 
 ## 开发资料
 

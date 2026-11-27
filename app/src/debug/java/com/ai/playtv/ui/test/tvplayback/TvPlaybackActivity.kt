@@ -28,7 +28,6 @@ import com.ai.playtv.model.bean.domain.source.SourceKind
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEffect
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackEvent
 import com.ai.playtv.model.contract.tvplayback.TvPlaybackState
-import com.ai.playtv.model.contract.tvplayback.TvPreviewSource
 import com.ai.playtv.ui.BaseMviActivity
 import com.ai.playtv.ui.test.sourceentry.SourceEntryActivity
 import java.util.Locale
@@ -41,12 +40,14 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         const val EXTRA_KINDS = "source_kinds"
         const val EXTRA_PARTIAL = "source_partial"
         const val EXTRA_SESSION_ID = "source_session_id"
+        const val EXTRA_HISTORY_ID = "source_history_id"
     }
     override val viewModelClass = TvPlaybackViewModel::class.java
     override fun createViewModelFactory(): ViewModelProvider.Factory =
         viewModelFactory(viewModelClass) {
             val network = NetworkDependencies(sourceNetworkConfig())
-            val owner = (application as SourcePreviewApplication).discoveryOwner
+            val app = application as SourcePreviewApplication
+            val owner = app.discoveryOwner
             val sessionId = intent.getStringExtra(EXTRA_SESSION_ID)
             val session = sessionId?.let(owner::find)
             val urls = intent.getStringArrayListExtra(EXTRA_URLS).orEmpty()
@@ -57,7 +58,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             val initial = session?.state?.value?.result?.items ?: sources
             TvPlaybackViewModel(applicationContext, SourceRepository(network.service(GithubSourceService::class.java)), network,
                 initial, session?.state?.value?.result?.partial ?: intent.getBooleanExtra(EXTRA_PARTIAL, false),
-                owner, sessionId, session)
+                owner, sessionId, session, app.sourceHistory, intent.getStringExtra(EXTRA_HISTORY_ID))
         }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -100,8 +101,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
     private val sourceAdapter = TvPreviewSourceAdapter { row ->
         closePlaylist()
-        row.source?.let { viewModel.onEvent(TvPlaybackEvent.SelectSource(it)) }
-            ?: row.imported?.let { viewModel.onEvent(TvPlaybackEvent.SelectImported(it)) }
+        viewModel.onEvent(TvPlaybackEvent.SelectImported(row.imported))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -188,17 +188,17 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.status.text = if (state.sourceResolving) getString(R.string.s_tv_preview_preparing) else if (state.error != null) {
             getString(R.string.s_tv_preview_status_with_error, status)
         } else status
-        val sourceName = state.activeName ?: getString(TvPreviewSourceAdapter.sourceLabel(state.source))
+        val sourceName = state.activeName ?: getString(R.string.s_tv_preview_no_source)
         binding.title.text = getString(if (state.phase == "PLAYING") R.string.s_tv_preview_now_playing
             else R.string.s_tv_preview_source_title, sourceName)
         binding.toggle.setText(if (state.phase in setOf("PLAYING", "BUFFERING", "PREPARING"))
             R.string.s_tv_preview_pause else R.string.s_tv_preview_play)
-        sourceAdapter.submitList((if (state.imported.isEmpty()) TvPreviewSource.entries.map {
-            TvPreviewSourceRow(it, null, it.name == state.activeId, it.name == state.activeId && state.phase == "PLAYING")
-        } else emptyList()) + state.imported.map {
-            TvPreviewSourceRow(null, it, it.id == state.activeId, it.id == state.activeId && state.phase == "PLAYING")
+        sourceAdapter.submitList(state.imported.map {
+            TvPreviewSourceRow(it, it.id == state.activeId, it.id == state.activeId && state.phase == "PLAYING")
         })
         binding.importStatus.text = when {
+            state.discoveryRateLimited -> getString(R.string.s_tv_import_rate_limit)
+            state.historyFailed -> getString(R.string.s_tv_history_failed)
             state.discoveryRunning -> getString(R.string.s_tv_import_discovering)
             state.discoveryFailed -> getString(R.string.s_tv_import_discovery_failed)
             state.importPartial -> getString(R.string.s_tv_import_partial)

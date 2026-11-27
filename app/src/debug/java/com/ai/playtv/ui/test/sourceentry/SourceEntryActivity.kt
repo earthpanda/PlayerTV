@@ -5,14 +5,13 @@ import android.graphics.Rect
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import androidx.lifecycle.ViewModelProvider
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.ai.playtv.R
-import com.ai.playtv.BuildConfig
 import com.ai.playtv.SourcePreviewApplication
 import com.ai.playtv.base.ui.loading.OperationLoadingController
 import com.ai.playtv.base.ui.KeyboardController
@@ -27,13 +26,17 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
     SourceEntryEffect, SourceEntryViewModel>(ActivitySourceEntryBinding::inflate) {
     override val viewModelClass = SourceEntryViewModel::class.java
     override fun createViewModelFactory(): ViewModelProvider.Factory = viewModelFactory(viewModelClass) {
-        SourceEntryViewModel((application as SourcePreviewApplication).discoveryOwner, BuildConfig.TEST_MODE)
+        val app = application as SourcePreviewApplication
+        SourceEntryViewModel(app.discoveryOwner, app.sourceHistory)
     }
     private lateinit var loading: OperationLoadingController
     private lateinit var messages: MessageController
     private lateinit var keyboard: KeyboardController
     private var imeVisible = false
     private var handledDirection: Int? = null
+    private val historyAdapter = SourceHistoryAdapter { viewModel.onEvent(SourceEntryEvent.OpenHistory(it)) }
+    private lateinit var repositoryAdapter: ArrayAdapter<String>
+    private var repositorySuggestions = emptyList<String>()
     private val inputBack = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() = restoreInput()
     }
@@ -45,6 +48,8 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         loading = OperationLoadingController(this)
         messages = MessageController(this)
         keyboard = KeyboardController(binding.sourceUrl)
+        repositoryAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, mutableListOf<String>())
+        binding.sourceUrl.setAdapter(repositoryAdapter)
         onBackPressedDispatcher.addCallback(this, inputBack)
         binding.sourceUrl.setOnFocusChangeListener { _, focused ->
             inputBack.isEnabled = focused
@@ -61,41 +66,15 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             imeVisible = visible
             insets
         }
-        val presets = listOf(
-            "https://github.com/Huanshere/VideoLingo",
-            "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv4.m3u",
-            "https://raw.githubusercontent.com/vbskycn/iptv/master/tv/iptv6.m3u",
-            "https://github.com/Guovin/iptv-api",
-            "https://raw.githubusercontent.com/CCSH/IPTV/main/live_lite.m3u",
-            "https://raw.githubusercontent.com/CCSH/IPTV/main/live.m3u",
-            "https://raw.githubusercontent.com/CCSH/IPTV/main/live_platforms.m3u",
-            "https://raw.githubusercontent.com/jia070310/lemonTV/main/iptv-fe.m3u",
-            "https://github.com/xiangfeigao/movie_resource",
-            "https://github.com/laoma528/awesome-zhuiju-free",
-            "https://github.com/linuxhobby/myquark",
-            "https://github.com/acoooder/aliyunpanshare",
-            "https://raw.githubusercontent.com/AudiHub/WanXiang-Release/main/1万部电影.txt",
-            "https://raw.githubusercontent.com/AudiHub/WanXiang-Release/main/电影工厂.txt",
-        )
-        val labels = resources.getStringArray(R.array.tv_source_presets)
-        binding.presets.visibility = if (BuildConfig.TEST_MODE) View.VISIBLE else View.GONE
-        binding.presets.adapter = ArrayAdapter(this, R.layout.item_source_preset, labels).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        }
-        var lastPreset = -1
-        binding.presets.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position > 0 && position - 1 in presets.indices && position != lastPreset && (lastPreset >= 0 || binding.sourceUrl.text.isNullOrEmpty())) binding.sourceUrl.setText(presets[position - 1])
-                lastPreset = position
-            }
-        }
+        binding.history.layoutManager = LinearLayoutManager(this)
+        binding.history.adapter = historyAdapter
         binding.submit.setOnClickListener { viewModel.onEvent(SourceEntryEvent.Submit(binding.sourceUrl.text.toString())) }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (!::keyboard.isInitialized) return super.dispatchKeyEvent(event)
-        if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP || event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+        if ((event.keyCode == KeyEvent.KEYCODE_DPAD_UP || event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN) &&
+            !binding.sourceUrl.isPopupShowing) {
             if (event.action == KeyEvent.ACTION_UP && handledDirection == event.keyCode) {
                 handledDirection = null
                 return true
@@ -103,7 +82,13 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             if (event.action == KeyEvent.ACTION_DOWN) {
                 val down = event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN
                 val current = currentFocus
-                val controls = listOf(binding.presets, binding.sourceUrl, binding.submit)
+                if (!down && current === binding.sourceUrl && historyAdapter.itemCount > 0) {
+                    val target = binding.history.getChildAt(0) ?: binding.history
+                    target.requestFocus()
+                    handledDirection = event.keyCode
+                    return true
+                }
+                val controls = listOf(binding.sourceUrl, binding.submit)
                     .filter { it.visibility == View.VISIBLE && it.isEnabled }
                 val index = controls.indexOfFirst { it === current }
                 if (index >= 0 || current == null || current === binding.root) {
@@ -137,10 +122,23 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
         binding.sourceUrl.removeCallbacks(imeDismissed)
         ViewCompat.setOnApplyWindowInsetsListener(binding.sourceUrl, null)
         if (::keyboard.isInitialized) keyboard.close()
+        binding.history.adapter = null
         super.onDestroy()
     }
     override fun render(state: SourceEntryState) {
-        binding.submit.isEnabled = state.loadingId == null
+        binding.submit.isEnabled = state.loadingId == null && !state.historyOpening
+        if (repositorySuggestions != state.repositorySuggestions) {
+            repositorySuggestions = state.repositorySuggestions
+            repositoryAdapter.clear()
+            repositoryAdapter.addAll(repositorySuggestions)
+        }
+        historyAdapter.submitList(state.history)
+        binding.historyMessage.text = when {
+            state.historyFailed -> getString(R.string.s_tv_history_failed)
+            state.historyLoading -> getString(R.string.s_tv_history_loading)
+            state.history.isEmpty() -> getString(R.string.s_tv_history_empty)
+            else -> ""
+        }
         loading.render(state.loadingId, getString(R.string.s_tv_import_loading), true) { viewModel.onEvent(SourceEntryEvent.Cancel(it)) }
         binding.status.text = when (state.error) {
             "EMPTY" -> getString(R.string.s_tv_import_empty)
@@ -150,14 +148,16 @@ class SourceEntryActivity : BaseMviActivity<ActivitySourceEntryBinding, SourceEn
             "RATE_LIMIT" -> getString(R.string.s_tv_import_rate_limit)
             "HTTP_403" -> getString(R.string.s_tv_http_forbidden)
             "REQUIRED" -> getString(R.string.s_tv_import_required)
+            "HISTORY_FAILED" -> getString(R.string.s_tv_history_failed)
             "FAILED" -> getString(R.string.s_tv_import_failed)
             else -> ""
         }
     }
     override fun handleEffect(effect: SourceEntryEffect) {
         when (effect) {
-            SourceEntryEffect.OpenDefaults -> startActivity(Intent(this, TvPlaybackActivity::class.java))
             SourceEntryEffect.ServerForbidden -> messages.show(getString(R.string.s_tv_http_forbidden))
+            is SourceEntryEffect.OpenHistory -> startActivity(Intent(this, TvPlaybackActivity::class.java)
+                .putExtra(TvPlaybackActivity.EXTRA_HISTORY_ID, effect.id))
             is SourceEntryEffect.OpenPlayer -> {
                 val intent = Intent(this, TvPlaybackActivity::class.java)
                 intent.putExtra(TvPlaybackActivity.EXTRA_SESSION_ID, effect.sessionId)

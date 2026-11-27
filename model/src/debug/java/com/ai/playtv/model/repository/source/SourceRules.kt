@@ -34,6 +34,22 @@ object SourceRules {
             if (candidate(uri.path.orEmpty()) || uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/")) uri.toString() else null
         }.distinct().toList()
     }
+
+    /** Read only the rendered README article, not arbitrary page chrome or scripts. */
+    fun githubReadmeHtmlLinks(html: String, base: URI): List<String> {
+        val start = Regex("<article\\b[^>]*\\bmarkdown-body\\b[^>]*>", RegexOption.IGNORE_CASE).find(html)
+            ?: return emptyList()
+        val end = html.indexOf("</article", start.range.last + 1, ignoreCase = true)
+        if (end < 0) return emptyList()
+        val article = html.substring(start.range.last + 1, end).replace("&amp;", "&", ignoreCase = true)
+        val hrefs = Regex("\\bhref\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+            .findAll(article).map { it.groupValues[1] }
+            .mapNotNull { runCatching { base.resolve(it).toString() }.getOrNull() }
+        return (hrefs + urlPattern.findAll(article).map { it.value.trimEnd('.', ',', ';') }).mapNotNull { value ->
+            val uri = runCatching { checkedUrl(value) }.getOrNull() ?: return@mapNotNull null
+            if (candidate(uri.path.orEmpty()) || uri.host.equals("github.com", true) && uri.path.startsWith("/user-attachments/assets/")) uri.toString() else null
+        }.distinct().toList()
+    }
     fun kind(content: String): SourceKind = when {
         content.lineSequence().any { it.trim().startsWith("#EXT-X-", true) } -> SourceKind.HLS
         Regex("<MPD(?:\\s|>)", RegexOption.IGNORE_CASE).containsMatchIn(content) -> SourceKind.DASH

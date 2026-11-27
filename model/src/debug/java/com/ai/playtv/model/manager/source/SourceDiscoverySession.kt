@@ -3,6 +3,7 @@ package com.ai.playtv.model.manager.source
 import com.ai.playtv.model.bean.domain.source.SourceDiscovery
 import com.ai.playtv.model.repository.source.SourceRepository
 import com.ai.playtv.model.repository.source.sourceHttpStatus
+import com.ai.playtv.model.repository.source.isGithubRateLimited
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,6 +19,7 @@ data class SourceDiscoverySessionState(
     val result: SourceDiscovery? = null,
     val running: Boolean = true,
     val error: String? = null,
+    val cancelled: Boolean = false,
 )
 
 /** One in-memory scan; the session owner closes it when playback ends. */
@@ -28,6 +30,7 @@ class SourceDiscoverySession(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
+    private val stateLock = Any()
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val mutableState = MutableStateFlow(SourceDiscoverySessionState())
     val state = mutableState.asStateFlow()
@@ -36,23 +39,37 @@ class SourceDiscoverySession(
         scope.launch {
             try {
                 val result = repository.discover(input) { update ->
-                    if (!closed.get()) mutableState.value = SourceDiscoverySessionState(update)
+                    synchronized(stateLock) {
+                        if (!closed.get()) mutableState.value = SourceDiscoverySessionState(update)
+                    }
                 }
-                if (!closed.get()) mutableState.value = SourceDiscoverySessionState(result, running = false)
+                synchronized(stateLock) {
+                    if (!closed.get()) mutableState.value = SourceDiscoverySessionState(result, running = false,
+                        error = if (result.rateLimited) "RATE_LIMIT" else null)
+                }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                if (!closed.get()) mutableState.value = mutableState.value.copy(
-                    running = false,
-                    error = if (error.sourceHttpStatus() == 403) "HTTP_403" else "FAILED",
-                )
+                synchronized(stateLock) {
+                    if (!closed.get()) mutableState.value = mutableState.value.copy(
+                        running = false,
+                        error = when {
+                            error.isGithubRateLimited() -> "RATE_LIMIT"
+                            error.sourceHttpStatus() == 403 -> "HTTP_403"
+                            else -> "FAILED"
+                        },
+                    )
+                }
             }
         }
     }
 
     override fun close() {
-        if (!closed.compareAndSet(false, true)) return
-        mutableState.value = mutableState.value.copy(running = false)
+        synchronized(stateLock) {
+            if (!closed.compareAndSet(false, true)) return
+            val previous = mutableState.value
+            mutableState.value = previous.copy(running = false, cancelled = previous.running)
+        }
         // Retrofit cancellation may close a socket synchronously, so do it away from Main.
         CoroutineScope(dispatcher).launch {
             try { scope.cancel() } finally { release() }
