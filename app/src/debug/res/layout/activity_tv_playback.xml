@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent" android:layout_height="match_parent" android:background="#000000">
     <SurfaceView android:id="@+id/video" android:layout_width="match_parent" android:layout_height="match_parent" />
     <TextView android:id="@+id/buffering" android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -42,16 +43,20 @@
                 android:layout_marginStart="8pt" android:text="@string/s_tv_preview_play" />
         </LinearLayout>
     </LinearLayout>
-    <LinearLayout android:id="@+id/playlist_panel" android:layout_width="match_parent"
-        android:layout_height="match_parent" android:layout_gravity="bottom" android:background="#E6191B20"
-        android:clickable="true" android:orientation="vertical" android:padding="20pt" android:visibility="gone">
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="@string/s_tv_preview_playlist" android:textColor="#FFFFFF" android:textSize="18pt" />
-        <TextView android:id="@+id/import_status" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:textColor="#CCCCCC" android:textSize="11pt" />
-        <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist" android:layout_width="match_parent"
-            android:layout_height="0dp" android:layout_marginTop="12pt" android:layout_weight="1" />
-        <TextView android:id="@+id/close_playlist" style="@style/Widget.TvPlaybackPreview.Control"
-            android:layout_gravity="end" android:text="@string/s_tv_preview_close" />
-    </LinearLayout>
+    <androidx.constraintlayout.widget.ConstraintLayout android:id="@+id/playlist_overlay"
+        android:layout_width="match_parent" android:layout_height="match_parent"
+        android:clickable="true" android:visibility="gone">
+        <LinearLayout android:id="@+id/playlist_panel" android:layout_width="0dp"
+            android:layout_height="0dp" android:background="#E6191B20" android:clickable="true"
+            android:orientation="vertical" android:padding="20pt"
+            app:layout_constraintWidth_percent="0.5" app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" app:layout_constraintBottom_toBottomOf="parent">
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="@string/s_tv_preview_playlist" android:textColor="#FFFFFF" android:textSize="18pt" />
+            <TextView android:id="@+id/import_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:textColor="#CCCCCC" android:textSize="11pt" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/playlist" android:layout_width="match_parent"
+                android:layout_height="0dp" android:layout_marginTop="12pt" android:layout_weight="1" />
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </FrameLayout>

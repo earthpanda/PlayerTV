@@ -9,6 +9,7 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.ViewConfiguration
+import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.ViewModelProvider
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -71,9 +72,16 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     private var touchMode = 0 // 0 undecided, 1 horizontal, 2 vertical
     private var heldKey: Int? = null
     private var longSeekStarted = false
+    private var videoTouchActive = false
+    private var progressTracking = false
+    private val playlistBack = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = closePlaylist()
+    }
     private val hideControls = Runnable {
-        binding.topControls.visibility = View.GONE
-        binding.bottomControls.visibility = View.GONE
+        if (canHideControls()) {
+            binding.topControls.visibility = View.GONE
+            binding.bottomControls.visibility = View.GONE
+        }
     }
     private val seekStep = object : Runnable {
         override fun run() {
@@ -114,10 +122,12 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         binding.video.holder.addCallback(this)
         binding.video.setOnTouchListener { _, event -> onVideoTouch(event) }
         binding.toggle.setOnClickListener { showControls(); viewModel.onEvent(TvPlaybackEvent.Toggle) }
-        binding.closePlaylist.setOnClickListener { closePlaylist() }
+        onBackPressedDispatcher.addCallback(this, playlistBack)
+        binding.playlistOverlay.setOnClickListener { closePlaylist() }
         binding.playlist.layoutManager = LinearLayoutManager(this)
         binding.playlist.adapter = sourceAdapter
         binding.progress.onTracking = { target ->
+            progressTracking = true
             handler.removeCallbacks(hideControls)
             showControls(scheduleHide = false)
             gestureSource = state.activeId
@@ -126,6 +136,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
             renderProgress()
         }
         binding.progress.onFinishTracking = { target ->
+            progressTracking = false
             commitSeek(target)
             previewMs = null
             renderProgress()
@@ -137,6 +148,8 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
         handler.removeCallbacks(hideControls)
         handler.removeCallbacks(seekStep)
         heldKey = null
+        videoTouchActive = false
+        progressTracking = false
         previewMs = null
         viewModel.onEvent(TvPlaybackEvent.Background)
         super.onStop()
@@ -147,7 +160,16 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     override fun surfaceDestroyed(holder: SurfaceHolder) { viewModel.attachSurface(null) }
 
     override fun render(state: TvPlaybackState) {
+        val wasPlaying = isPlayingForControls(this.state)
+        val previousSourceId = this.state.activeId
         this.state = state
+        val isPlaying = isPlayingForControls(state)
+        if (!isPlaying) {
+            handler.removeCallbacks(hideControls)
+            if (wasPlaying || binding.bottomControls.visibility != View.VISIBLE) showControls(scheduleHide = false)
+        } else if (!wasPlaying || previousSourceId != state.activeId) {
+            if (binding.playlistOverlay.visibility != View.VISIBLE) showControls()
+        }
         binding.buffering.visibility = if (state.phase == "BUFFERING") View.VISIBLE else View.GONE
         binding.buffering.text = getString(R.string.s_tv_preview_buffer_percent, state.bufferedPercent.coerceIn(0, 100))
         val status = getString(when (state.phase) {
@@ -205,19 +227,29 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
 
     private fun scheduleHide() {
         handler.removeCallbacks(hideControls)
-        handler.postDelayed(hideControls, 5_000L)
+        if (canHideControls()) handler.postDelayed(hideControls, 5_000L)
     }
+
+    private fun isPlayingForControls(state: TvPlaybackState): Boolean =
+        state.phase == "PLAYING" && !state.sourceResolving && state.error == null
+
+    private fun canHideControls(): Boolean = isPlayingForControls(state) &&
+        binding.playlistOverlay.visibility != View.VISIBLE && heldKey == null && !videoTouchActive && !progressTracking
 
     private fun openPlaylist() {
         handler.removeCallbacks(hideControls)
-        hideControls.run()
-        binding.playlistPanel.visibility = View.VISIBLE
+        if (isPlayingForControls(state)) {
+            binding.topControls.visibility = View.GONE
+            binding.bottomControls.visibility = View.GONE
+        }
+        binding.playlistOverlay.visibility = View.VISIBLE
+        playlistBack.isEnabled = true
         binding.playlist.post {
-            if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
+            if (!isFinishing && !isDestroyed && binding.playlistOverlay.visibility == View.VISIBLE) {
                 val index = sourceAdapter.currentList.indexOfFirst { it.id == state.activeId }.coerceAtLeast(0)
                 binding.playlist.scrollToPosition(index)
                 binding.playlist.post {
-                    if (!isFinishing && !isDestroyed && binding.playlistPanel.visibility == View.VISIBLE) {
+                    if (!isFinishing && !isDestroyed && binding.playlistOverlay.visibility == View.VISIBLE) {
                         binding.playlist.findViewHolderForAdapterPosition(index)?.itemView?.requestFocus()
                             ?: binding.playlist.requestFocus()
                     }
@@ -227,12 +259,13 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     }
 
     private fun closePlaylist() {
-        binding.playlistPanel.visibility = View.GONE
+        playlistBack.isEnabled = false
+        binding.playlistOverlay.visibility = View.GONE
         showControls()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (binding.playlistPanel.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
+        if (binding.playlistOverlay.visibility == View.VISIBLE) return super.dispatchKeyEvent(event)
         when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_DOWN -> {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) openPlaylist()
@@ -272,6 +305,7 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
     private fun onVideoTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                videoTouchActive = true
                 downX = event.x; downY = event.y; touchMode = 0
                 gestureStartMs = state.positionMs
                 gestureDurationMs = state.durationMs ?: 0L
@@ -293,15 +327,17 @@ class TvPlaybackActivity : BaseMviActivity<ActivityTvPlaybackBinding, TvPlayback
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                videoTouchActive = false
                 if (touchMode == 1) commitSeek(previewMs)
                 else if (TvPreviewSeekMath.opensPlaylist(touchMode, event.y - downY,
                         ViewConfiguration.get(this).scaledTouchSlop)) openPlaylist()
                 previewMs = null
                 renderProgress()
-                if (binding.playlistPanel.visibility != View.VISIBLE) scheduleHide()
+                if (binding.playlistOverlay.visibility != View.VISIBLE) scheduleHide()
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                videoTouchActive = false
                 previewMs = null
                 renderProgress()
                 scheduleHide()

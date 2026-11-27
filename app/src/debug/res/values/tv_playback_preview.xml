@@ -23,7 +23,6 @@
     <string name="s_tv_preview_seek_unavailable">当前视频不支持快进或后退</string>
     <string name="s_tv_preview_progress_description">播放进度</string>
     <string name="s_tv_preview_playlist">播放列表</string>
-    <string name="s_tv_preview_close">关闭列表</string>
     <string name="s_tv_preview_playing_label">正在播放</string>
     <string name="s_tv_preview_selected_label">已选择</string>
     <string name="s_tv_preview_available_label">未选择</string>

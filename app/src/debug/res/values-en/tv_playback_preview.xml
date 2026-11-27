@@ -23,7 +23,6 @@
     <string name="s_tv_preview_seek_unavailable">Seeking is unavailable for this video</string>
     <string name="s_tv_preview_progress_description">Playback progress</string>
     <string name="s_tv_preview_playlist">Playlist</string>
-    <string name="s_tv_preview_close">Close list</string>
     <string name="s_tv_preview_playing_label">Playing</string>
     <string name="s_tv_preview_selected_label">Selected</string>
     <string name="s_tv_preview_available_label">Not selected</string>
