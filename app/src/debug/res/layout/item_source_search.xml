@@ -7,7 +7,11 @@
     <FrameLayout android:id="@+id/poster_placeholder" android:layout_width="0dp" android:layout_height="0dp"
         android:background="#303740" app:layout_constraintDimensionRatio="H,2:3"
         app:layout_constraintStart_toStartOf="parent" app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+        <ImageView android:id="@+id/poster" android:layout_width="match_parent"
+            android:layout_height="match_parent" android:scaleType="fitCenter"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
     <TextView android:id="@+id/title" android:layout_width="0dp" android:layout_height="42pt"
         android:background="@drawable/source_search_card_title" android:duplicateParentState="true"
         android:gravity="center" android:singleLine="true" android:ellipsize="end"

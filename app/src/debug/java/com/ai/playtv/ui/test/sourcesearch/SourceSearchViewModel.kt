@@ -47,7 +47,10 @@ class SourceSearchViewModel(private val history: SourceHistoryStore, initialQuer
                             if (isRestricted(name)) continue
                             val words = transliterator.transliterate(name).split(Regex("[^A-Za-z0-9]+"))
                                 .filter { it.isNotEmpty() }
-                            updated.add(IndexedRow(SearchRow(entry.id, item.id, name),
+                            val revision = if (item.channelId == null && item.logoUrl == null) null else MessageDigest.getInstance("SHA-256").digest(
+                                (item.channelId.orEmpty() + "\u0000" + item.logoUrl.orEmpty()).toByteArray(Charsets.UTF_8)
+                            ).joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                            updated.add(IndexedRow(SearchRow(entry.id, item.id, name, revision),
                                 words.joinToString(""), words.joinToString("") { it.take(1) }))
                         }
                         index = updated

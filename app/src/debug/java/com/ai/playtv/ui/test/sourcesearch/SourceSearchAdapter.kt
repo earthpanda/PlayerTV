@@ -8,14 +8,21 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.ai.playtv.databinding.ItemSourceSearchBinding
 import com.ai.playtv.model.contract.sourcesearch.SearchRow
+import kotlinx.coroutines.Job
 
 class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val onLeft: () -> Unit) :
     ListAdapter<SearchRow, SourceSearchAdapter.Holder>(DIFF) {
-    class Holder(val binding: ItemSourceSearchBinding) : RecyclerView.ViewHolder(binding.root)
+    var artworkLoader: SearchArtworkLoader? = null
+    class Holder(val binding: ItemSourceSearchBinding) : RecyclerView.ViewHolder(binding.root) {
+        var artworkJob: Job? = null
+    }
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
         Holder(ItemSourceSearchBinding.inflate(LayoutInflater.from(parent.context), parent, false))
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val row = getItem(position)
+        holder.artworkJob?.cancel()
+        holder.binding.poster.setImageDrawable(null)
+        holder.artworkJob = artworkLoader?.bind(holder.binding.poster, row)
         holder.binding.title.text = row.name
         val scale = if (holder.binding.root.hasFocus()) 1.2f else 1f
         holder.binding.root.animate().cancel()
@@ -32,6 +39,12 @@ class SourceSearchAdapter(private val onOpen: (SearchRow) -> Unit, private val o
                 onLeft(); true
             } else false
         }
+    }
+    override fun onViewRecycled(holder: Holder) {
+        holder.artworkJob?.cancel()
+        holder.artworkJob = null
+        holder.binding.poster.setImageDrawable(null)
+        super.onViewRecycled(holder)
     }
     private companion object {
         val DIFF = object : DiffUtil.ItemCallback<SearchRow>() {

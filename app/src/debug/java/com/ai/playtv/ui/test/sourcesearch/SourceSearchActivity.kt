@@ -28,6 +28,7 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     private var restoredKey = 9
     private var lastKey: View? = null
     private var lastKeyIndex = 9
+    private lateinit var artworkLoader: SearchArtworkLoader
     private val adapter = SourceSearchAdapter({ viewModel.onEvent(SourceSearchEvent.Open(it)) },
         { (lastKey ?: keyAt(9))?.requestFocus() })
     override fun createViewModelFactory(): ViewModelProvider.Factory = viewModelFactory(viewModelClass) {
@@ -44,6 +45,8 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
         super.onSaveInstanceState(outState)
     }
     override fun initView() {
+        artworkLoader = SearchArtworkLoader(application as SourcePreviewApplication)
+        adapter.artworkLoader = artworkLoader
         binding.results.layoutManager = GridLayoutManager(this, 4)
         binding.results.adapter = adapter
         val keys = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
@@ -123,6 +126,8 @@ class SourceSearchActivity : BaseMviActivity<ActivitySourceSearchBinding, Source
     }
     override fun onDestroy() {
         binding.results.adapter = null
+        if (::artworkLoader.isInitialized) artworkLoader.close()
+        adapter.artworkLoader = null
         super.onDestroy()
     }
 }

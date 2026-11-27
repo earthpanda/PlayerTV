@@ -4,7 +4,7 @@ import com.ai.playtv.model.contract.mvi.UiEffect
 import com.ai.playtv.model.contract.mvi.UiEvent
 import com.ai.playtv.model.contract.mvi.UiState
 
-data class SearchRow(val historyId: String, val itemId: String, val name: String)
+data class SearchRow(val historyId: String, val itemId: String, val name: String, val artworkRevision: String? = null)
 data class SourceSearchState(
     val query: String = "", val rows: List<SearchRow> = emptyList(),
     val loading: Boolean = true, val failed: Boolean = false,
