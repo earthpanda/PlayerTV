@@ -38,6 +38,9 @@
     <string name="s_tv_import_partial">Partial results: over 100 items or unsupported addresses</string>
     <string name="s_tv_entry_title">Enter a source</string>
     <string name="s_tv_entry_start">Discover and play</string>
+    <string name="s_tv_home_history">History</string>
+    <string name="s_tv_home_sources">Sources</string>
+    <string name="s_tv_home_add_source">Add source</string>
     <string name="s_tv_history_title">Source history</string>
     <string name="s_tv_history_loading">Loading source history…</string>
     <string name="s_tv_history_empty">No source history yet</string>

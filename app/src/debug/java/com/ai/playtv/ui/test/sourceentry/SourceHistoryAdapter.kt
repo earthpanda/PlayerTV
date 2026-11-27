@@ -11,7 +11,7 @@ import java.text.DateFormat
 import java.util.Date
 
 /** Presentation only: the store owns the saved source and its candidates. */
-class SourceHistoryAdapter(private val onSelect: (String) -> Unit) :
+class SourceHistoryAdapter(private val onSelect: (String) -> Unit, private val onFocused: (String) -> Unit) :
     ListAdapter<SourceHistoryRow, SourceHistoryAdapter.Holder>(DIFF) {
     class Holder(val binding: ItemSourceHistoryBinding) : RecyclerView.ViewHolder(binding.root)
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder = Holder(
@@ -22,6 +22,8 @@ class SourceHistoryAdapter(private val onSelect: (String) -> Unit) :
         holder.binding.historyName.text = item.title
         holder.binding.historyTime.text = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
             .format(Date(item.lastUsedAtMs))
+        holder.binding.root.setOnFocusChangeListener { _, focused -> if (focused) onFocused(item.id) }
+        if (holder.binding.root.hasFocus()) onFocused(item.id)
         holder.binding.root.setOnClickListener { onSelect(item.id) }
     }
 

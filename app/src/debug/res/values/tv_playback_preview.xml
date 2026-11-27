@@ -53,6 +53,9 @@
     <string name="s_tv_import_partial">仅显示部分候选，可能超过 100 项或包含未支持的地址</string>
     <string name="s_tv_entry_title">输入播放来源</string>
     <string name="s_tv_entry_start">解析并播放</string>
+    <string name="s_tv_home_history">历史记录</string>
+    <string name="s_tv_home_sources">视频源</string>
+    <string name="s_tv_home_add_source">添加视频源</string>
     <string name="s_tv_history_title">历史播放源</string>
     <string name="s_tv_history_loading">正在加载历史播放源…</string>
     <string name="s_tv_history_empty">暂无历史播放源</string>
