@@ -21,7 +21,7 @@ dependencyResolutionManagement {
             forRepository {
                 maven {
                     name = "playbackSdkLocal"
-                    url = uri("../PlaybackSDK-playtv/build/repository")
+                    url = uri("sdk-maven")
                 }
             }
             filter { includeGroup("com.ai.media") }

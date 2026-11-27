@@ -2,10 +2,14 @@ param([switch]$Offline)
 
 $ErrorActionPreference = 'Stop'
 $projectDir = $PSScriptRoot
-$sdkDir = [IO.Path]::GetFullPath((Join-Path $projectDir '..\PlaybackSDK-playtv'))
+$sdkDir = [IO.Path]::GetFullPath((Join-Path $projectDir '..\..\..\PlaybackSDK-playtv'))
+$sdkRepository = Join-Path $projectDir 'sdk-maven'
+$sdkManifest = Join-Path $sdkRepository 'playback-sdk.json'
+$sdkHelper = Join-Path $projectDir 'tools\playback_sdk_repository.py'
 $logDir = Join-Path $projectDir 'build\verification\packaging'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-$version = '0.1.0-dev-' + [DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')
+$runId = [DateTime]::UtcNow.ToString('yyyyMMddHHmmssfff')
+$version = '0.1.0-dev-' + $runId
 
 function Wait-GradleIdle {
     do {
@@ -23,8 +27,8 @@ function Invoke-CheckedGradle([string]$directory, [string[]]$arguments, [string]
     Wait-GradleIdle
     $wrapper = Join-Path $directory 'gradlew.bat'
     if (-not (Test-Path -LiteralPath $wrapper)) { throw "Missing Gradle wrapper: $wrapper" }
-    $outLog = Join-Path $logDir "$version-$label.log"
-    $errLog = Join-Path $logDir "$version-$label-error.log"
+    $outLog = Join-Path $logDir "$runId-$label.log"
+    $errLog = Join-Path $logDir "$runId-$label-error.log"
     $argumentLine = '/d /c ""' + $wrapper + '" ' + ($arguments -join ' ') + '"'
     $process = Start-Process -FilePath $env:ComSpec -ArgumentList $argumentLine -WorkingDirectory $directory `
         -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
@@ -89,13 +93,54 @@ function Invoke-CheckedGradle([string]$directory, [string[]]$arguments, [string]
 }
 
 $offlineArgs = if ($Offline) { @('--offline') } else { @() }
-Write-Host "Publishing current PlaybackSDK as $version"
-Invoke-CheckedGradle $sdkDir (@(':android:publishReleasePublicationToLocalSdkRepository', '--no-daemon', "-PsdkPublicationVersion=$version") + $offlineArgs) 'sdk'
+$manifest = $null
+if (Test-Path -LiteralPath $sdkManifest) {
+    $manifest = Get-Content -Raw -LiteralPath $sdkManifest | ConvertFrom-Json
+}
+$sdkExists = Test-Path -LiteralPath $sdkDir -PathType Container
+$needsPublication = $true
+if ($sdkExists) {
+    Write-Host 'Checking PlaybackSDK source and prepared inputs'
+    $sdkFingerprint = & python -X utf8 $sdkHelper fingerprint $sdkDir
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect local PlaybackSDK inputs.' }
+    if ($manifest -and $manifest.sdkFingerprint -and $manifest.sdkFingerprint -eq $sdkFingerprint) {
+        $needsPublication = $false
+    }
+} else {
+    $needsPublication = $false
+    Write-Host 'Local PlaybackSDK is absent; using the publication in PlayTV.'
+}
+if ($needsPublication) {
+    Write-Host "Publishing current PlaybackSDK as $version"
+    Invoke-CheckedGradle $sdkDir (@(':android:publishReleasePublicationToLocalSdkRepository', '--no-daemon', "-PsdkPublicationVersion=$version") + $offlineArgs) 'sdk'
+    $afterFingerprint = & python -X utf8 $sdkHelper fingerprint $sdkDir
+    if ($LASTEXITCODE -ne 0 -or $afterFingerprint -ne $sdkFingerprint) { throw 'PlaybackSDK inputs changed during publication.' }
+    & python -X utf8 $sdkHelper install $sdkDir $version --fingerprint $sdkFingerprint
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to update the PlayTV SDK publication.' }
+    $manifest = Get-Content -Raw -LiteralPath $sdkManifest | ConvertFrom-Json
+} else {
+    if (-not $manifest) { throw 'Missing SDK publication in PlayTV; prepare PlaybackSDK and run this script again.' }
+    $version = [string]$manifest.version
+    Write-Host "Reusing PlayTV SDK publication $version"
+}
+if ($version -notmatch '^[A-Za-z0-9.-]+$') { throw 'Invalid SDK publication version.' }
+$publicationDir = Join-Path $sdkRepository "com\ai\media\playback-android\$version"
+foreach ($suffix in @('aar', 'pom', 'module')) {
+    $required = "playback-android-$version.$suffix"
+    if (-not $manifest.files.PSObject.Properties[$required]) { throw "Incomplete SDK publication: $required" }
+}
+foreach ($item in $manifest.files.PSObject.Properties) {
+    if ([IO.Path]::GetFileName($item.Name) -ne $item.Name) { throw 'Invalid SDK publication file name.' }
+    $file = Join-Path $publicationDir $item.Name
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-FileHash -Algorithm SHA256 -LiteralPath $file).Hash -ne $item.Value) {
+        throw "SDK publication missing or changed: $($item.Name)"
+    }
+}
 Write-Host 'Building PlayTV with -DTest=true'
 Invoke-CheckedGradle $projectDir (@(':app:assembleDebug', '--no-daemon', '-DTest=true', '-PtestWebmCandidate=true', "-PplaybackSdkBuildVersion=$version") + $offlineArgs) 'app'
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$aarPath = Join-Path $sdkDir "build\repository\com\ai\media\playback-android\$version\playback-android-$version.aar"
+$aarPath = Join-Path $publicationDir "playback-android-$version.aar"
 $apkPath = Join-Path $projectDir 'app\build\outputs\apk\debug\app-debug.apk'
 $aar = [IO.Compression.ZipFile]::OpenRead($aarPath)
 $apk = [IO.Compression.ZipFile]::OpenRead($apkPath)

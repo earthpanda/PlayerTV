@@ -3,12 +3,12 @@
 机器可读的真实声明在 [版本目录](../../gradle/libs.versions.toml)、根/四模块 Gradle 与 [settings](../../settings.gradle.kts)。初始化记录见 [.template-lock.json](../../.template-lock.json)，不引用外部原工程。
 
 - 模板版本：0.4.0；能力：none；工具库：com.blankj:utilcodex:1.31.1。
-- 播放器：`com.ai.media:playback-android`，仅声明在 app；通过相邻 `PlaybackSDK-playtv/build/repository` Maven 仓库解析。debug 打包入口 `build-playtv.ps1` 先发布相邻 SDK 当前源码，生成唯一版本供该次构建使用，并校验 APK 的 `arm64-v8a` 和 `armeabi-v7a` 库；具体命令与 Gradle 进程边界见 AGENTS。脚本要求相邻 SDK 工程及两个 ABI 的已准备开发库，不会自动下载缺失文件。SDK 候选最低 API 26，设备验证状态以功能记录为准。
+- 播放器：`com.ai.media:playback-android`，仅声明在 app；从 PlayTV 内 `sdk-maven` 仓库解析。debug 打包入口检查相邻 SDK 的源码、未提交改动及准备输入；有变化时发布唯一版本并覆盖仓库内产物，无变化或本地没有 SDK 时复用仓库内产物。打包后校验 APK 的 `arm64-v8a` 和 `armeabi-v7a` 库与选中 AAR 一致；具体命令与进程边界见 AGENTS。SDK 存在时需准备两个 ABI 的开发库，脚本不会自动下载。SDK 候选最低 API 26，设备验证状态以功能记录为准。
 - 初始化时 AAR `fb04deaa5f3bb147915dcf5da98bb74ffcb9b7500f303b90df20d4e95077453d` 是历史 arm64 产物，并非当前打包来源或验收证明。正式分发仍需独立版本和验收。
 - 构建组合：AGP/Kotlin 见版本目录；Gradle 8.13、JDK 17、compile/target/min SDK 35/35/26。
 - Gradle 版本采用 AGP 8.13 文档给出的默认/最低 8.13；并非复制源项目的 Wrapper 9.2.1。完整组合尚未构建验证。
 - 仓库集中在 settings，FAIL_ON_PROJECT_REPOS；本工程采用 `aliyun` 仓库配置。默认 aliyun 按顺序声明阿里云 HTTP public、jcenter、HTTPS public、JitPack，再接 Google/Maven Central；none 仅保留公共来源及所选能力的必要来源。插件仓库按顺序为受分组限制的 google、Maven Central、Gradle Plugin Portal。
-- 默认不携带火山引擎和未选用的厂商仓库；只有实际选择相应工具库/能力时才添加其声明来源，按 URL 去重，位置在 Google/Maven Central 之前。仓库条目不会自动添加对应 SDK。
+- 默认不携带火山引擎等未选用的厂商仓库；只有实际选择相应工具库/能力时才添加其声明来源，按 URL 去重，位置在 Google/Maven Central 之前。仓库条目不会自动添加对应 SDK。
 - Gradle 分发来源：`aliyun`，地址 `https://mirrors.aliyun.com/macports/distfiles/gradle/gradle-8.13-all.zip`；版本仍为 8.13，保留官方分发 SHA-256。Maven 镜像与 Wrapper 下载源独立，地址声明不代表已下载或构建通过。
 - 模板显式声明实际使用的 ConstraintLayout、RecyclerView、Activity、Fragment，不能依赖偶然的传递依赖。model 没有 UI 栈/Binding，base 没有上层工程依赖。
 - 列表统一 AndroidX ListAdapter/DiffUtil/ViewBinding，包括多 viewType；禁止引入 MultiType 或自建大型适配器框架。
@@ -19,7 +19,7 @@
 
 后续网络/图片能力的默认方案见本文末尾，以下清单只反映本次实际生成的依赖，不因存在规则就视为已启用。
 
-- 本地 PlaybackSDK Maven：固定 `../PlaybackSDK-playtv/build/repository`，仅 `com.ai.media` 使用。
+- 本地 PlaybackSDK Maven：`sdk-maven`（相对于 `launcher/playtv`），仅 `com.ai.media` 使用；版本及文件摘要记录在 `sdk-maven/playback-sdk.json`。
 - 阿里云 HTTP public: `http://maven.aliyun.com/nexus/content/groups/public/`（显式允许 HTTP）
 - 阿里云 jcenter: `http://maven.aliyun.com/nexus/content/repositories/jcenter`（显式允许 HTTP）
 - 阿里云 HTTPS public: `https://maven.aliyun.com/repository/public`
